@@ -8,7 +8,7 @@ on:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'copilot/')
+    if: startsWith(github.head_ref, 'copilot/') && github.actor == 'copilot-swe-agent[bot]'
     
     steps:
     - name: Check out code
@@ -88,13 +88,13 @@ jobs:
           exit 1
         fi
         
-        # Approve the PR
+        # Auto-approve the PR (no human approval required)
         gh pr review ${{ github.event.number }} --approve --body "$APPROVAL_MSG"
         
         # Wait a moment for approval to register
         sleep 5
         
-        # Merge the PR
+        # Auto-merge the PR immediately
         gh pr merge ${{ github.event.number }} --squash --delete-branch --body "$MERGE_MSG"
         
         echo "✅ PR merged successfully"
