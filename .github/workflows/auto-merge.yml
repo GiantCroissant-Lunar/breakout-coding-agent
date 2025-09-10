@@ -2,7 +2,7 @@ name: Auto-merge Flow-RFC PRs
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
 
 jobs:
@@ -14,6 +14,17 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v4
       
+    - name: Auto-ready draft PRs
+      run: |
+        # If this is a draft PR from copilot, mark it ready automatically
+        if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
+          echo "🔄 Draft PR detected - marking as ready for review"
+          gh pr ready ${{ github.event.number }}
+          sleep 5  # Give GitHub time to process the change
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Validate PR format
       run: |
         echo "Validating PR for auto-merge eligibility..."
@@ -88,13 +99,14 @@ jobs:
           exit 1
         fi
         
-        # Auto-approve the PR (no human approval required)
+        # Auto-approve and merge the PR (fully automated)
+        echo "🤖 Auto-approving and merging RFC implementation..."
         gh pr review ${{ github.event.number }} --approve --body "$APPROVAL_MSG"
         
         # Wait a moment for approval to register
         sleep 5
         
-        # Auto-merge the PR immediately
+        # Auto-merge with branch deletion (fully automated)
         gh pr merge ${{ github.event.number }} --squash --delete-branch --body "$MERGE_MSG"
         
         echo "✅ PR merged successfully"
