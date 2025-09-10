@@ -1,0 +1,54 @@
+name: Cleanup Stale Copilot Branches
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Clean up merged copilot branches
+      run: |
+        echo "🧹 Cleaning up stale copilot branches..."
+        
+        # Get all remote copilot branches
+        git fetch origin
+        
+        # Find copilot branches that don't have open PRs
+        for branch in $(git branch -r | grep origin/copilot/ | sed 's/origin\///'); do
+          echo "Checking branch: $branch"
+          
+          # Check if there's an open PR for this branch
+          pr_count=$(gh pr list --head "$branch" --state open --json number --jq 'length')
+          
+          if [ "$pr_count" -eq 0 ]; then
+            echo "🗑️ No open PR found for $branch - deleting"
+            git push origin --delete "$branch" || echo "❌ Failed to delete $branch"
+          else
+            echo "✅ $branch has open PR - keeping"
+          fi
+        done
+        
+        echo "✅ Branch cleanup completed"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Clean up old workflow runs
+      run: |
+        echo "🧹 Cleaning up old workflow runs..."
+        
+        # Keep only last 10 workflow runs
+        gh api repos/${{ github.repository }}/actions/runs \
+          --paginate \
+          --jq '.workflow_runs[10:] | .[].id' | \
+          xargs -I {} gh api repos/${{ github.repository }}/actions/runs/{} -X DELETE || true
+          
+        echo "✅ Workflow cleanup completed"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
