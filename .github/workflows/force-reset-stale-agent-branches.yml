@@ -1,0 +1,161 @@
+name: Force Reset Stale GitHub Coding Agent Branches
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes
+  workflow_dispatch:
+    inputs:
+      reset_threshold:
+        description: 'Commits behind main to trigger reset'
+        required: false
+        default: '2'
+      age_threshold_hours:
+        description: 'Hours old to trigger reset'
+        required: false  
+        default: '2'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  reset-stale-agent-branches:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'GiantCroissant-Lunar'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for commit counting
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Find GitHub Coding Agent PRs
+        id: find-agent-prs
+        run: |
+          echo "Searching for GitHub Coding Agent PRs..."
+          
+          # Get all open PRs from copilot-swe-agent
+          agent_prs=$(gh pr list --author copilot-swe-agent --state open --json number,headRefName,createdAt --limit 10)
+          
+          if [ "$agent_prs" = "[]" ]; then
+            echo "No GitHub Coding Agent PRs found"
+            echo "reset_needed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Found GitHub Coding Agent PRs:"
+          echo "$agent_prs" | jq -r '.[] | "PR #\(.number): \(.headRefName) (created: \(.createdAt))"'
+          
+          echo "agent_prs<<EOF" >> $GITHUB_OUTPUT
+          echo "$agent_prs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "reset_needed=true" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check and reset stale branches
+        if: steps.find-agent-prs.outputs.reset_needed == 'true'
+        run: |
+          RESET_THRESHOLD=${{ github.event.inputs.reset_threshold || '2' }}
+          AGE_THRESHOLD=${{ github.event.inputs.age_threshold_hours || '2' }}
+          
+          echo "Reset thresholds: $RESET_THRESHOLD commits behind, $AGE_THRESHOLD hours old"
+          
+          # Update main branch reference
+          git fetch origin main
+          
+          # Process each GitHub Coding Agent PR
+          echo '${{ steps.find-agent-prs.outputs.agent_prs }}' | jq -r '.[] | @base64' | while IFS= read -r pr_data; do
+            pr_json=$(echo "$pr_data" | base64 -d)
+            pr_number=$(echo "$pr_json" | jq -r '.number')
+            branch_name=$(echo "$pr_json" | jq -r '.headRefName')
+            created_at=$(echo "$pr_json" | jq -r '.createdAt')
+            
+            echo "Processing PR #$pr_number: $branch_name"
+            
+            # Fetch the branch
+            git fetch origin "$branch_name" || {
+              echo "Failed to fetch branch $branch_name, skipping"
+              continue
+            }
+            
+            # Calculate commits behind main
+            behind_count=$(git rev-list --count "origin/$branch_name..origin/main" 2>/dev/null || echo "0")
+            echo "Branch $branch_name is $behind_count commits behind main"
+            
+            # Calculate age in hours
+            created_timestamp=$(date -d "$created_at" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$created_at" +%s 2>/dev/null || echo "0")
+            current_timestamp=$(date +%s)
+            age_hours=$(( (current_timestamp - created_timestamp) / 3600 ))
+            echo "PR #$pr_number is $age_hours hours old"
+            
+            # Decide if reset is needed
+            should_reset=false
+            reset_reason=""
+            
+            if [ "$behind_count" -ge "$RESET_THRESHOLD" ] && [ "$age_hours" -ge "$AGE_THRESHOLD" ]; then
+              should_reset=true
+              reset_reason="Branch is $behind_count commits behind main and $age_hours hours old"
+            elif [ "$behind_count" -ge 5 ]; then
+              should_reset=true  
+              reset_reason="Branch is significantly behind main ($behind_count commits)"
+            fi
+            
+            if [ "$should_reset" = "true" ]; then
+              echo "🔄 Resetting branch $branch_name: $reset_reason"
+              
+              # Force reset branch to latest main
+              git checkout main
+              git pull origin main
+              git branch -D "$branch_name" 2>/dev/null || true
+              git checkout -b "$branch_name" main
+              
+              # Force push the reset branch
+              if git push origin "$branch_name" --force; then
+                echo "✅ Successfully reset branch $branch_name to latest main"
+                
+                # Comment on PR explaining the reset
+                comment_body="🔄 **Branch Reset to Latest Main**
+
+**What happened**: Your branch was $behind_count commits behind main and had been active for $age_hours hours.
+
+**Action taken**: Reset your branch to the latest main branch to ensure you're working with the most recent codebase and avoid merge conflicts.
+
+**What's next**: Please continue implementing the RFC requirements. You now have all the latest improvements from main branch.
+
+**Benefits**: 
+- ✅ No merge conflicts
+- ✅ Latest main branch features available  
+- ✅ Clean starting point for continued development
+
+--- 🤖 *Automated branch reset from Force Reset Workflow*"
+                
+                gh pr comment "$pr_number" --body "$comment_body"
+                
+              else
+                echo "❌ Failed to reset branch $branch_name"
+                
+                # Comment about reset failure
+                gh pr comment "$pr_number" --body "⚠️ Attempted to reset your branch to latest main but encountered an error. You may need to manually rebase or recreate your branch to resolve conflicts with main."
+              fi
+            else
+              echo "ℹ️ No reset needed for PR #$pr_number ($behind_count commits behind, $age_hours hours old)"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: steps.find-agent-prs.outputs.reset_needed == 'true'
+        run: |
+          echo "✅ Force reset workflow completed"
+          echo "Checked all GitHub Coding Agent PRs for reset criteria"
+          echo "Reset threshold: ${{ github.event.inputs.reset_threshold || '2' }} commits behind main"
+          echo "Age threshold: ${{ github.event.inputs.age_threshold_hours || '2' }} hours old"
