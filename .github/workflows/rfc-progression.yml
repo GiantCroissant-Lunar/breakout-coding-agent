@@ -13,6 +13,11 @@ on:
         required: false
         default: 'false'
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
 jobs:
   create-next-rfc:
     runs-on: ubuntu-latest
