@@ -1,14 +1,4 @@
 name: RFC Health Monitor
-                    # Verify reassignment persisted; fail visibly if not
-                    assignees = self.run_gh(
-                        f'issue view {issue_num} --repo "{self.repo}" --json assignees --jq ".assignees[].login"'
-                    )
-                    if 'Copilot' not in assignees.splitlines():
-                        self.run_gh(
-                            f'issue comment {issue_num} --repo "{self.repo}" --body "Auto-intervention failed to persist assignment. @maintainers please check PAT/app permissions and repo access for Copilot assignment."'
-                        )
-                        raise SystemExit(1)
-                    
 on:
   schedule:
     # Run every 5 minutes for testing, then change back to 30 minutes
