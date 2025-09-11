@@ -37,14 +37,31 @@ public class Paddle
     }
     
     /// <summary>
+    /// Checks if the paddle can move left without going out of bounds
+    /// </summary>
+    /// <returns>True if paddle can move left</returns>
+    public bool CanMoveLeft()
+    {
+        return X > 0;
+    }
+    
+    /// <summary>
+    /// Checks if the paddle can move right without going out of bounds
+    /// </summary>
+    /// <returns>True if paddle can move right</returns>
+    public bool CanMoveRight()
+    {
+        return X + Width < Constants.CONSOLE_WIDTH;
+    }
+    
+    /// <summary>
     /// Moves the paddle left while respecting left boundary
     /// </summary>
     public void MoveLeft()
     {
-        int newX = X - PaddleConstants.MovementSpeed;
-        if (newX >= 0)
+        if (CanMoveLeft())
         {
-            X = newX;
+            X = Math.Max(0, X - PaddleConstants.MovementSpeed);
         }
     }
     
@@ -53,10 +70,9 @@ public class Paddle
     /// </summary>
     public void MoveRight()
     {
-        int newX = X + PaddleConstants.MovementSpeed;
-        if (newX + Width <= Constants.CONSOLE_WIDTH)
+        if (CanMoveRight())
         {
-            X = newX;
+            X = Math.Min(Constants.CONSOLE_WIDTH - Width, X + PaddleConstants.MovementSpeed);
         }
     }
 }
