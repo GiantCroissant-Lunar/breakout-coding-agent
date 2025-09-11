@@ -32,11 +32,55 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Validate PR format
-      run: bash .github/scripts/validate_pr.sh
+      run: |
+        set -euo pipefail
+        REPO="${{ github.repository }}"
+        PR_NUMBER="${{ github.event.number }}"
+        echo "Validating PR #$PR_NUMBER for auto-merge eligibility..."
+
+        PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json title --jq .title)
+        echo "Title: $PR_TITLE"
+
+        if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
+          echo "Flow-RFC-001 PR detected - validating only README.md changed"
+          files_changed=$(gh api repos/"$REPO"/pulls/"$PR_NUMBER"/files --jq '.[].filename' | wc -l)
+          if [ "$files_changed" -gt 1 ]; then
+            echo "Too many files changed ($files_changed)"; exit 1; fi
+          readme_changed=$(gh api repos/"$REPO"/pulls/"$PR_NUMBER"/files --jq '.[] | select(.filename == "README.md") | .filename')
+          if [ -z "$readme_changed" ]; then echo "README.md not changed"; exit 1; fi
+          echo "Flow-RFC-001 validation passed"
+        elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
+          echo "Game-RFC PR detected"
+          closing_count=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+          if [ "${closing_count:-0}" -gt 0 ]; then
+            echo "Issue reference present via closing keywords"
+          else
+            echo "Missing closing keyword; posting guidance comment and failing validation"
+            rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
+            suggestion="Fixes #<issue-number>"
+            if [ -n "$rfc_num" ]; then
+              issue_num=$(gh issue list --repo "$REPO" --state open --label game-rfc --json number,title \
+                --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
+              if [ -n "$issue_num" ]; then suggestion="Fixes #$issue_num"; fi
+            fi
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body @- <<EOF
+Hi! This PR looks like a Game-RFC implementation but it doesn't reference its tracking issue. For full automation, please add a closing keyword to the PR description so the workflow can auto-merge it.
+
+Add this line to the PR description:
+
+$suggestion
+
+After updating, the Auto-merge workflow will re-run and merge automatically. Thanks!
+EOF
+            exit 1
+          fi
+          echo "Game-RFC validation passed"
+        else
+          echo "Not a recognized RFC PR, skipping auto-merge"; exit 0
+        fi
+        echo "PR validation completed successfully"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        PR_NUMBER: ${{ github.event.number }}
 
     - name: Auto-approve and merge
       run: |
