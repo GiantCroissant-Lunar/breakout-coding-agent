@@ -15,6 +15,16 @@ public class Game
     public GameState State { get; set; }
     
     /// <summary>
+    /// Game ball
+    /// </summary>
+    public Ball Ball { get; set; }
+    
+    /// <summary>
+    /// Game paddle
+    /// </summary>
+    public Paddle Paddle { get; set; }
+    
+    /// <summary>
     /// Whether the game is running
     /// </summary>
     public bool IsRunning { get; private set; }
@@ -31,6 +41,11 @@ public class Game
     {
         State = GameState.Menu;
         IsRunning = false;
+        
+        // Initialize game objects
+        Ball = new Ball();
+        Paddle = new Paddle();
+        InitializeGameObjects();
     }
     
     /// <summary>
@@ -40,6 +55,21 @@ public class Game
     {
         RenderSystem.InitializeConsole();
         IsRunning = true;
+    }
+    
+    /// <summary>
+    /// Initializes game objects to their starting positions
+    /// </summary>
+    private void InitializeGameObjects()
+    {
+        // Initialize ball
+        BallSystem.InitializeBall(Ball);
+        
+        // Initialize paddle
+        Paddle.X = (Constants.CONSOLE_WIDTH - PaddleConstants.DefaultWidth) / 2;
+        Paddle.Y = Constants.CONSOLE_HEIGHT - 3;
+        Paddle.Width = PaddleConstants.DefaultWidth;
+        Paddle.Character = PaddleConstants.DefaultCharacter;
     }
     
     /// <summary>
@@ -83,6 +113,8 @@ public class Game
                 if (InputSystem.IsSpacePressed(key))
                 {
                     State = GameState.Playing;
+                    // Reset game objects when starting new game
+                    InitializeGameObjects();
                 }
                 break;
                 
@@ -133,7 +165,21 @@ public class Game
                 break;
                 
             case GameState.Playing:
-                // Game object updates (ball, paddle, collisions) - future RFCs
+                // Store previous ball position for clearing
+                int prevX = Ball.X;
+                int prevY = Ball.Y;
+                
+                // Update ball physics
+                BallSystem.Update(Ball, Paddle);
+                
+                // Check if ball was lost
+                if (!Ball.IsActive)
+                {
+                    State = GameState.GameOver;
+                }
+                
+                // Clear previous ball position
+                RenderSystem.ClearPosition(prevX, prevY);
                 break;
                 
             case GameState.Paused:
@@ -152,6 +198,13 @@ public class Game
     private void Render()
     {
         RenderSystem.RenderFrame(State);
+        
+        // Render game objects during gameplay
+        if (State == GameState.Playing)
+        {
+            RenderSystem.DrawPaddle(Paddle);
+            RenderSystem.DrawBall(Ball);
+        }
     }
     
     /// <summary>
