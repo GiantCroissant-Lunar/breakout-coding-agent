@@ -17,14 +17,14 @@ jobs:
     - name: Ensure Copilot is assigned
       run: |
         ISSUE=${{ github.event.issue.number }}
+        REPO=${{ github.repository }}
         echo "Checking assignment for issue #$ISSUE"
-        ASSIGNEES=$(gh issue view "$ISSUE" --json assignees --jq '.assignees[].login' || true)
+        ASSIGNEES=$(gh issue view "$ISSUE" --repo "$REPO" --json assignees --jq '.assignees[].login' || true)
         if ! echo "$ASSIGNEES" | grep -q '^copilot-swe-agent$'; then
           echo "Assigning copilot-swe-agent to #$ISSUE"
-          gh issue edit "$ISSUE" --add-assignee copilot-swe-agent
+          gh issue edit "$ISSUE" --repo "$REPO" --add-assignee copilot-swe-agent
         else
           echo "copilot-swe-agent already assigned"
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
