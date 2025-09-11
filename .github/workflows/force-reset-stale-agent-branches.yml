@@ -96,11 +96,20 @@ jobs:
             age_hours=$(( (current_timestamp - created_timestamp) / 3600 ))
             echo "PR #$pr_number is $age_hours hours old"
             
+            # Check if PR is completed/ready for review (don't reset working branches)
+            pr_status=$(gh pr view "$pr_number" --json isDraft,mergeable,statusCheckRollup --jq '{isDraft, mergeable, statusCheckRollup}' 2>/dev/null || echo '{"isDraft":true,"mergeable":null,"statusCheckRollup":null}')
+            is_draft=$(echo "$pr_status" | jq -r '.isDraft')
+            echo "PR #$pr_number isDraft: $is_draft"
+            
             # Decide if reset is needed
             should_reset=false
             reset_reason=""
             
-            if [ "$behind_count" -ge "$RESET_THRESHOLD" ] && [ "$age_hours" -ge "$AGE_THRESHOLD" ]; then
+            # NEVER reset non-draft PRs (completed work)
+            if [ "$is_draft" = "false" ]; then
+              echo "Skipping reset - PR #$pr_number is ready for review (not draft)"
+              should_reset=false
+            elif [ "$behind_count" -ge "$RESET_THRESHOLD" ] && [ "$age_hours" -ge "$AGE_THRESHOLD" ]; then
               should_reset=true
               reset_reason="Branch is $behind_count commits behind main and $age_hours hours old"
             elif [ "$behind_count" -ge 5 ]; then
