@@ -92,18 +92,41 @@ jobs:
             gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
             continue
           fi
-          echo "Assigning Coding Agent via REST"
-          if ! gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot; then
-            echo "Warning: could not assign Coding Agent (Copilot)"
+          
+          echo "Attempting to assign coding agent..."
+          ASSIGNED=false
+          
+          # Try copilot-swe-agent first (primary option)
+          echo "Trying to assign copilot-swe-agent..."
+          if gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=copilot-swe-agent 2>/dev/null; then
+            echo "Successfully assigned copilot-swe-agent"
+            ASSIGNED=true
+          else
+            echo "Failed to assign copilot-swe-agent, trying fallback..."
+            
+            # Fallback to Copilot
+            echo "Trying to assign Copilot..."
+            if gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot 2>/dev/null; then
+              echo "Successfully assigned Copilot"
+              ASSIGNED=true
+            else
+              echo "Failed to assign Copilot as well"
+            fi
+          fi
+          
+          if [ "$ASSIGNED" = false ]; then
+            echo "Warning: could not assign any Coding Agent"
             echo "Repo assignables (sample):"
             gh api repos/"$REPO"/assignees --jq '.[].login' | head -20 || true
           fi
+          
           # Nudge regardless
           gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
+          
           # Verify assignment persisted; fail if it didn't
           ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
-          if ! echo "$ASSIGNEES" | grep -Eq '^Copilot$'; then
-            echo "Assignment to Copilot did not persist; please check PAT permissions or app access"
+          if ! echo "$ASSIGNEES" | grep -Eq '^(copilot-swe-agent|Copilot)$'; then
+            echo "Assignment did not persist; please check PAT permissions or app access"
             if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "issues" ]; then
               exit 1
             else
