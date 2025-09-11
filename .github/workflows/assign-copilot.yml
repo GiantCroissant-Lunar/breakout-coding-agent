@@ -43,6 +43,7 @@ jobs:
           echo "GH_TOKEN_SOURCE=APP" >> $GITHUB_ENV
           echo "EFFECTIVE_GH_TOKEN=${{ steps.app-token.outputs.token }}" >> $GITHUB_ENV
         fi
+        echo "Token source: ${GH_TOKEN_SOURCE:-unknown}"
 
     - name: Preflight gh environment
       run: |
@@ -83,15 +84,22 @@ jobs:
             continue
           fi
           echo "Assigning Coding Agent via REST"
-          gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot \
-            || echo "Warning: could not assign Coding Agent (Copilot)"
+          if ! gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot; then
+            echo "Warning: could not assign Coding Agent (Copilot)"
+            echo "Repo assignables (sample):"
+            gh api repos/"$REPO"/assignees --jq '.[].login' | head -20 || true
+          fi
           # Nudge regardless
           gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
           # Verify assignment persisted; fail if it didn't
           ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
           if ! echo "$ASSIGNEES" | grep -Eq '^Copilot$'; then
             echo "Assignment to Copilot did not persist; please check PAT permissions or app access"
-            exit 1
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "issues" ]; then
+              exit 1
+            else
+              echo "Continuing (non-fatal) for scheduled run"
+            fi
           fi
         done
       env:
