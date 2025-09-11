@@ -1,9 +1,13 @@
 name: Auto-merge Flow-RFC PRs
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   auto-merge:
@@ -11,9 +15,6 @@ jobs:
     if: startsWith(github.head_ref, 'copilot/')
     
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
     - name: Auto-ready draft PRs
       run: |
         # If this is a draft PR from copilot, mark it ready automatically
