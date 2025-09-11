@@ -2,8 +2,8 @@ name: RFC Health Monitor
 
 on:
   schedule:
-    # Run every 30 minutes during active hours (9 AM - 9 PM UTC)
-    - cron: '*/30 9-21 * * *'
+    # Run every 5 minutes for testing, then change back to 30 minutes
+    - cron: '*/5 * * * *'
   
   workflow_dispatch:
     inputs:
