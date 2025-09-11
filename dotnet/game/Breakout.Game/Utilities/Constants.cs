@@ -91,4 +91,9 @@ public static class PaddleConstants
     /// Default paddle color
     /// </summary>
     public const ConsoleColor DefaultColor = ConsoleColor.Cyan;
+    
+    /// <summary>
+    /// Paddle movement speed (characters per frame)
+    /// </summary>
+    public const int MovementSpeed = 1;
 }
