@@ -109,7 +109,7 @@ jobs:
                     return []
             
             def check_abandoned_issues(self) -> List[Dict]:
-                """Check for issues assigned >24 hours without PR"""
+                """Check for issues assigned >30 minutes without PR"""
                 print("🔍 Checking for abandoned issues...")
                 
                 try:
@@ -130,11 +130,11 @@ jobs:
                         has_pr = len(json.loads(prs_json) if prs_json else []) > 0
                         
                         # Consider abandoned if >24 hours assigned without PR (or force mode)
-                        is_abandoned = (hours_since_assigned > 24 and not has_pr) or self.force_interventions
+                        is_abandoned = (hours_since_assigned > 0.5 and not has_pr) or self.force_interventions
                         
                         status = "🟢 Active" if has_pr else \
                                 "🟡 Recent" if hours_since_assigned < 8 else \
-                                "🟠 Delayed" if hours_since_assigned < 24 else \
+                                "🟠 Delayed" if hours_since_assigned < 0.5 else \
                                 "🔴 ABANDONED"
                         
                         print(f"  Issue #{issue_num}: {issue['title'][:50]}...")
@@ -222,7 +222,7 @@ jobs:
                 report += f"\n## 📈 Health Metrics\n"
                 report += f"- **Monitoring Frequency**: Every 30 minutes during active hours\n"
                 report += f"- **Stall Threshold**: 2 hours without PR updates\n"
-                report += f"- **Abandonment Threshold**: 24 hours without PR creation\n"
+                report += f"- **Abandonment Threshold**: 0.5 hours without PR creation\n"
                 report += f"- **Automation Status**: {'🟢 Operating' if not (stalled_prs or abandoned_issues) else '🟡 Intervening'}\n"
                 
                 return report
@@ -273,3 +273,4 @@ jobs:
         fi
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
