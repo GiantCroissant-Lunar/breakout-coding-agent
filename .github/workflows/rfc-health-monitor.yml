@@ -172,6 +172,85 @@ jobs:
                             })
                     
                     return abandoned_issues
+
+            def _get_reissue_marker(self, issue_num: int) -> Optional[Dict]:
+                """Return marker info if reissue was created: {new_issue, timestamp_iso} or None"""
+                try:
+                    comments = self.run_gh(
+                        f'issue view {issue_num} --repo "{self.repo}" --json comments --jq ".comments[].body"'
+                    )
+                    if not comments:
+                        return None
+                    for line in comments.splitlines():
+                        if line.startswith('reissue-created:'):
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                new_issue = int(parts[1])
+                                ts = parts[3]
+                                return { 'new_issue': new_issue, 'timestamp_iso': ts }
+                    return None
+                except Exception:
+                    return None
+
+            def _create_reissue(self, src_issue: Dict) -> Optional[int]:
+                """Create a re-issue for activation attempt; return new issue number or None"""
+                num = src_issue['number']
+                title = src_issue.get('title', '')
+                body = self.run_gh(
+                    f'issue view {num} --repo "{self.repo}" --json body --jq .body'
+                ) or ''
+                new_title = f"Re-issue: {title} (activation attempt #1)"
+                new_body = (
+                    f"This is an automated re-issue for activation. Original: #{num}.\n\n" +
+                    (body or '') +
+                    "\n\n---\nAutomated by RFC Health Monitor"
+                )
+                print(f"Creating re-issue for #{num} -> '{new_title}'")
+                self.run_gh(
+                    f'issue create --repo "{self.repo}" --title "{new_title}" --body "{new_body}" --label game-rfc --assignee "Copilot"',
+                    required=True
+                )
+                try:
+                    new_num = self.run_gh(
+                        f'issue list --repo "{self.repo}" --state open --search "{new_title}" --json number --jq ".[0].number"',
+                        required=True
+                    )
+                    return int(new_num)
+                except Exception:
+                    return None
+
+            def maybe_reissue_issue(self, issue: Dict) -> None:
+                """If no PR for >2h, create a Re-issue, link and close original"""
+                try:
+                    num = issue['number']
+                    hours = issue.get('hours_abandoned', 0)
+                    if hours < 2 and not self.force_interventions:
+                        return
+                    marker = self._get_reissue_marker(num)
+                    if marker:
+                        return
+                    prs_json = self.run_gh(
+                        f'pr list --repo "{self.repo}" --search "Fixes #{num}" --json number'
+                    )
+                    has_pr = len(json.loads(prs_json) if prs_json else []) > 0
+                    if has_pr and not self.force_interventions:
+                        return
+                    new_issue_num = self._create_reissue(issue)
+                    if new_issue_num:
+                        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        self.run_gh(
+                            f'issue comment {num} --repo "{self.repo}" --body "reissue-created: {new_issue_num} at {ts}"'
+                        )
+                        self.run_gh(
+                            f'issue comment {num} --repo "{self.repo}" --body "Closing in favor of re-issue #{new_issue_num}. @copilot please continue there."'
+                        )
+                        self.run_gh(
+                            f'issue close {num} --repo "{self.repo}"'
+                        )
+                        print(f"? Created re-issue #{new_issue_num} and closed original #{num}")
+                        self.interventions_taken.append(f"? Re-issued abandoned issue #{num} -> #{new_issue_num}")
+                except Exception as e:
+                    print(f"? Failed to create re-issue for #{issue.get('number')}: {e}")
                     
                 except Exception as e:
                     print(f"Error checking issues: {e}")
@@ -266,6 +345,7 @@ jobs:
                 
                 for issue in abandoned_issues:
                     self.reassign_abandoned_issue(issue)
+                    self.maybe_reissue_issue(issue)
                 
                 # Generate and display report
                 report = self.generate_health_report(stalled_prs, abandoned_issues)
