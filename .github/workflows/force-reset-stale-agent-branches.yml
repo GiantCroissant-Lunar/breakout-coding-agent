@@ -109,7 +109,7 @@ jobs:
             fi
             
             if [ "$should_reset" = "true" ]; then
-              echo "🔄 Resetting branch $branch_name: $reset_reason"
+              echo "Resetting branch $branch_name: $reset_reason"
               
               # Force reset branch to latest main
               git checkout main
@@ -119,34 +119,21 @@ jobs:
               
               # Force push the reset branch
               if git push origin "$branch_name" --force; then
-                echo "✅ Successfully reset branch $branch_name to latest main"
+                echo "Successfully reset branch $branch_name to latest main"
                 
                 # Comment on PR explaining the reset
-                comment_body="🔄 **Branch Reset to Latest Main**
-
-**What happened**: Your branch was $behind_count commits behind main and had been active for $age_hours hours.
-
-**Action taken**: Reset your branch to the latest main branch to ensure you're working with the most recent codebase and avoid merge conflicts.
-
-**What's next**: Please continue implementing the RFC requirements. You now have all the latest improvements from main branch.
-
-**Benefits**: 
-- ✅ No merge conflicts
-- ✅ Latest main branch features available  
-- ✅ Clean starting point for continued development
-
---- 🤖 *Automated branch reset from Force Reset Workflow*"
+                comment_body="Branch Reset to Latest Main\n\nWhat happened: Your branch was $behind_count commits behind main and had been active for $age_hours hours.\n\nAction taken: Reset your branch to the latest main branch to ensure you're working with the most recent codebase and avoid merge conflicts.\n\nWhat's next: Please continue implementing the RFC requirements. You now have all the latest improvements from main branch.\n\nBenefits:\n- No merge conflicts\n- Latest main branch features available\n- Clean starting point for continued development\n\n--- Automated branch reset from Force Reset Workflow"
                 
                 gh pr comment "$pr_number" --body "$comment_body"
                 
               else
-                echo "❌ Failed to reset branch $branch_name"
+                echo "Failed to reset branch $branch_name"
                 
                 # Comment about reset failure
-                gh pr comment "$pr_number" --body "⚠️ Attempted to reset your branch to latest main but encountered an error. You may need to manually rebase or recreate your branch to resolve conflicts with main."
+                gh pr comment "$pr_number" --body "WARNING: Attempted to reset your branch to latest main but encountered an error. You may need to manually rebase or recreate your branch to resolve conflicts with main."
               fi
             else
-              echo "ℹ️ No reset needed for PR #$pr_number ($behind_count commits behind, $age_hours hours old)"
+              echo "No reset needed for PR #$pr_number ($behind_count commits behind, $age_hours hours old)"
             fi
           done
         env:
@@ -155,7 +142,7 @@ jobs:
       - name: Summary
         if: steps.find-agent-prs.outputs.reset_needed == 'true'
         run: |
-          echo "✅ Force reset workflow completed"
+          echo "Force reset workflow completed"
           echo "Checked all GitHub Coding Agent PRs for reset criteria"
           echo "Reset threshold: ${{ github.event.inputs.reset_threshold || '2' }} commits behind main"
           echo "Age threshold: ${{ github.event.inputs.age_threshold_hours || '2' }} hours old"
