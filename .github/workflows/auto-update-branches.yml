@@ -1,0 +1,137 @@
+name: Auto-Update Stale PR Branches
+
+on:
+  schedule:
+    # Check every 10 minutes for stale branches
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update all open PRs'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-branches:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Get GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ steps.app-token.outputs.token }}
+        
+    - name: Update stale GitHub Coding Agent branches
+      run: |
+        python3 << 'EOF'
+        import json
+        import subprocess
+        import datetime
+        
+        def run_gh(cmd):
+            """Execute GitHub CLI command"""
+            try:
+                result = subprocess.run(
+                    f"gh {cmd}", shell=True, capture_output=True, text=True, check=True,
+                    env={"GH_TOKEN": "${{ steps.app-token.outputs.token }}"}
+                )
+                return result.stdout.strip()
+            except subprocess.CalledProcessError as e:
+                print(f"Error: {e.stderr}")
+                return ""
+        
+        def check_branch_behind(pr_number, head_ref):
+            """Check if PR branch is behind main and by how many commits"""
+            try:
+                # Get comparison between main and PR head
+                result = run_gh(f'api repos/${{ github.repository }}/compare/main...{head_ref}')
+                if not result:
+                    return False, 0
+                    
+                compare_data = json.loads(result)
+                behind_by = compare_data.get('behind_by', 0)
+                status = compare_data.get('status', 'unknown')
+                
+                print(f"  PR #{pr_number}: {status}, behind by {behind_by} commits")
+                return status in ['behind', 'diverged'], behind_by
+            except Exception as e:
+                print(f"  Error checking PR #{pr_number}: {e}")
+                return False, 0
+        
+        def update_branch(pr_number):
+            """Update PR branch with latest main"""
+            try:
+                result = run_gh(f'pr view {pr_number} --json headRefName')
+                if not result:
+                    return False
+                    
+                pr_data = json.loads(result)
+                branch_name = pr_data['headRefName']
+                
+                print(f"  Updating branch {branch_name} for PR #{pr_number}...")
+                
+                # Use GitHub's update branch API
+                api_result = run_gh(f'api repos/${{ github.repository }}/pulls/{pr_number}/update-branch -X PUT')
+                
+                if api_result:
+                    print(f"  ✅ Successfully updated PR #{pr_number}")
+                    return True
+                else:
+                    print(f"  ❌ Failed to update PR #{pr_number}")
+                    return False
+                    
+            except Exception as e:
+                print(f"  ❌ Error updating PR #{pr_number}: {e}")
+                return False
+        
+        # Main execution
+        print("🔄 Checking GitHub Coding Agent PRs for stale branches...")
+        
+        force_update = "${{ github.event.inputs.force_update }}" == "true"
+        
+        # Get all open PRs from copilot-swe-agent
+        prs_json = run_gh('pr list --author="app/copilot-swe-agent" --state=open --json number,headRefName,title')
+        
+        if not prs_json:
+            print("  No open GitHub Coding Agent PRs found")
+            exit(0)
+            
+        prs = json.loads(prs_json)
+        updated_count = 0
+        
+        for pr in prs:
+            pr_number = pr['number']
+            head_ref = pr['headRefName']
+            title = pr['title']
+            
+            print(f"Checking PR #{pr_number}: {title}")
+            
+            is_behind, commits_behind = check_branch_behind(pr_number, head_ref)
+            
+            if force_update or (is_behind and commits_behind > 0):
+                print(f"  Branch is behind by {commits_behind} commits, updating...")
+                if update_branch(pr_number):
+                    updated_count += 1
+                    
+                    # Add a comment explaining the update
+                    comment = f"🔄 **Auto-updated branch** with latest main branch ({commits_behind} commits behind). This ensures the PR can be merged cleanly when ready. --- *Automated by Branch Update System*"
+                    run_gh(f'pr comment {pr_number} --body "{comment}"')
+            else:
+                print(f"  Branch is up to date")
+        
+        print(f"\n📊 Summary: Updated {updated_count} out of {len(prs)} PRs")
+        EOF
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
