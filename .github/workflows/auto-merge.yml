@@ -32,7 +32,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Validate PR format
-      run: .github/scripts/validate_pr.sh
+      run: bash .github/scripts/validate_pr.sh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_REPOSITORY: ${{ github.repository }}
