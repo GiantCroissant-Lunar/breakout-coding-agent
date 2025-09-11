@@ -14,9 +14,14 @@ permissions:
 
 jobs:
   assign:
+    # Run on:
+    # - issues events where title/labels indicate a Game-RFC
+    # - workflow_dispatch (manual backfill)
     if: |
-      contains(github.event.issue.title, 'Game-RFC-') ||
-      contains(join(github.event.issue.labels.*.name, ','), 'game-rfc')
+      (github.event_name == 'issues' && (
+        contains(github.event.issue.title, 'Game-RFC-') ||
+        contains(join(github.event.issue.labels.*.name, ','), 'game-rfc')
+      )) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
     - name: Get GitHub App token
