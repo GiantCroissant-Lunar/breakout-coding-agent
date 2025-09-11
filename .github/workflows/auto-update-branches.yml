@@ -156,7 +156,8 @@ jobs:
       run: |
         set -euo pipefail
         echo "Scanning for draft Copilot PRs to mark ready..."
-        PRS=$(gh pr list --repo "${{ github.repository }}" --author "app/copilot-swe-agent" --state open --json number,isDraft --jq '.[] | select(.isDraft==true) | .number' || true)
+        PRS=$( (gh pr list --repo "${{ github.repository }}" --author "app/copilot-swe-agent" --state open --json number,isDraft --jq '.[] | select(.isDraft==true) | .number' || true; \
+                gh pr list --repo "${{ github.repository }}" --author "Copilot" --state open --json number,isDraft --jq '.[] | select(.isDraft==true) | .number' || true) | sort -u )
         if [ -z "$PRS" ]; then
           echo "No draft Copilot PRs found"
           exit 0
