@@ -24,11 +24,21 @@ jobs:
 
     - name: Auto-ready draft PRs
       run: |
-        # If this is a draft PR from copilot, mark it ready automatically
+        set -euo pipefail
+        REPO="${{ github.repository }}"
+        PR_NUM="${{ github.event.number }}"
+        # Trust event payload first, then verify live status
         if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
-          echo "Draft PR detected - marking as ready for review"
-          gh pr ready ${{ github.event.number }}
-          sleep 5
+          echo "Event indicates draft PR; marking ready"
+          gh pr ready "$PR_NUM" --repo "$REPO" || true
+          sleep 3
+        fi
+        # Double-check current draft status via API and mark ready if still draft
+        IS_DRAFT=$(gh pr view "$PR_NUM" --repo "$REPO" --json isDraft --jq .isDraft || echo false)
+        if [[ "$IS_DRAFT" == "true" ]]; then
+          echo "Live status shows draft; marking ready"
+          gh pr ready "$PR_NUM" --repo "$REPO" || true
+          sleep 3
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
