@@ -44,8 +44,7 @@ jobs:
           # Get all open PRs from Copilot identities and merge
           prs_a=$(gh pr list --author "app/copilot-swe-agent" --state open --json number,headRefName,createdAt --limit 50 || echo '[]')
           prs_b=$(gh pr list --author "Copilot" --state open --json number,headRefName,createdAt --limit 50 || echo '[]')
-          agent_prs=$(jq -s 'add | unique_by(.number)' <<<"$prs_a
-$prs_b")
+          agent_prs=$(printf '%s\n%s\n' "$prs_a" "$prs_b" | jq -s 'add | unique_by(.number)')
           
           if [ "$agent_prs" = "[]" ]; then
             echo "No GitHub Coding Agent PRs found"
