@@ -61,10 +61,10 @@ jobs:
           echo "Processing $RFC_NUM"
           
           # Validate PR references an issue
-          if [[ "$PR_BODY" == *"Closes #"* ]] || [[ "$PR_BODY" == *"closes #"* ]]; then
+          if [[ "$PR_BODY" == *"Closes #"* ]] || [[ "$PR_BODY" == *"closes #"* ]] || [[ "$PR_BODY" == *"Fixes #"* ]] || [[ "$PR_BODY" == *"fixes #"* ]]; then
             echo "✅ PR properly references issue"
           else
-            echo "❌ Game-RFC PRs must reference the implementation issue (use 'Closes #issue-number')"
+            echo "❌ Game-RFC PRs must reference the implementation issue (use 'Closes #issue-number' or 'Fixes #issue-number')"
             exit 1
           fi
           
