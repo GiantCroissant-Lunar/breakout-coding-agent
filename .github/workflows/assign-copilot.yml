@@ -75,6 +75,15 @@ jobs:
           exit 0
         fi
         
+        # Pre-check: is Copilot assignable to this repo?
+        if gh api repos/"$REPO"/assignees/Copilot -X GET -i | head -1 | grep -q " 204 "; then
+          echo "Copilot is assignable to $REPO"
+        else
+          echo "Copilot is NOT assignable to $REPO (API returned non-204)."
+          echo "List of assignables (first 20):"
+          gh api repos/"$REPO"/assignees --jq '.[].login' | head -20 || true
+        fi
+
         for ISSUE in $TARGET_ISSUES; do
           echo "Checking assignment for issue #$ISSUE"
           ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
