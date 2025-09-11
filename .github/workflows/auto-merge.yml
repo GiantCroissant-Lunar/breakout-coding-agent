@@ -43,6 +43,31 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Pre-validate: ensure closing reference for Game-RFC PRs
+      run: |
+        set -euo pipefail
+        REPO="${{ github.repository }}"
+        PR_NUM="${{ github.event.number }}"
+        PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq .title)
+        if [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
+          closing=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+          if [ "${closing:-0}" -eq 0 ]; then
+            rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
+            issue_num=""
+            if [ -n "$rfc_num" ]; then
+              issue_num=$(gh issue list --repo "$REPO" --state open --label game-rfc --json number,title \
+                --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
+            fi
+            if [ -n "$issue_num" ]; then
+              body=$(gh pr view "$PR_NUM" --repo "$REPO" --json body --jq .body || echo "")
+              printf "%s\n\nFixes #%s\n" "$body" "$issue_num" > /tmp/pr_body.txt
+              gh pr edit "$PR_NUM" --repo "$REPO" --body-file /tmp/pr_body.txt || true
+            fi
+          fi
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Validate PR format
       run: |
         set -euo pipefail
