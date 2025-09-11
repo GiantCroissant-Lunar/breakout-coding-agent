@@ -186,7 +186,7 @@ jobs:
                     time.sleep(2)
                     
                     # Reassign to fresh instance
-                    self.run_gh(f'issue edit {issue_num} --add-assignee "copilot-swe-agent"')
+                    self.run_gh(f'issue edit {issue_num} --add-assignee "Copilot"')
                     
                     # Post explanation comment
                     comment = f"Issue reassigned to fresh GitHub Coding Agent instance after {hours:.1f} hours without PR creation. The RFC specification is available in the linked documentation. Please create a feature branch and begin implementation. --- 🤖 *Automated intervention from RFC Health Monitor*"
@@ -263,7 +263,8 @@ jobs:
         monitor.run()
         EOF
       env:
-        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        # Use maintainer PAT for assignment operations within the monitor
+        GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         
     - name: Post health report to coordinator issue
       if: always()
