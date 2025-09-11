@@ -244,15 +244,16 @@ Please implement Game-RFC-{rfc_num:03d} according to the specification in `{file
             # Extract issue URL from result
             issue_url = result.strip() if result else "Unknown"
             
-            # Try to assign to Copilot (may fail but issue will still be created)
+            # Assign to repository owner/maintainer (who can then trigger Copilot)
             try:
                 issue_number = issue_url.split('/')[-1] if issue_url != "Unknown" else None
                 if issue_number:
-                    assign_cmd = f'issue edit {issue_number} --add-assignee Copilot'
+                    # Try assigning to ApprenticeGC (repository maintainer)
+                    assign_cmd = f'issue edit {issue_number} --add-assignee ApprenticeGC'
                     self.run_gh_command(assign_cmd)
-                    print(f"✅ Assigned issue to Copilot")
+                    print(f"✅ Assigned issue to ApprenticeGC for Copilot activation")
             except Exception as e:
-                print(f"⚠️ Could not assign to Copilot: {e}")
+                print(f"⚠️ Could not assign issue: {e}")
                 print("   Issue created successfully but manual assignment may be needed")
             
             print(f"✅ Created issue: {issue_url}")
