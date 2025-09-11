@@ -20,9 +20,11 @@ jobs:
         REPO=${{ github.repository }}
         echo "Checking assignment for issue #$ISSUE"
         ASSIGNEES=$(gh issue view "$ISSUE" --repo "$REPO" --json assignees --jq '.assignees[].login' || true)
-        if ! echo "$ASSIGNEES" | grep -q '^copilot-swe-agent$'; then
-          echo "Assigning copilot-swe-agent to #$ISSUE"
-          gh issue edit "$ISSUE" --repo "$REPO" --add-assignee copilot-swe-agent
+        if ! echo "$ASSIGNEES" | grep -Eq '^(copilot-swe-agent|Copilot)$'; then
+          echo "Assigning GitHub Coding Agent to #$ISSUE"
+          gh issue edit "$ISSUE" --repo "$REPO" --add-assignee copilot-swe-agent \
+            || gh issue edit "$ISSUE" --repo "$REPO" --add-assignee Copilot \
+            || echo "Warning: could not assign Coding Agent (copilot-swe-agent/Copilot)"
         else
           echo "copilot-swe-agent already assigned"
         fi
