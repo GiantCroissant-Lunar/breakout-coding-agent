@@ -39,7 +39,9 @@ dotnet run --project dotnet/game/Breakout.Game
 
 **Flow Engineering Phase**: ✅ Basic PR merge cycle validated - GitHub Coding Agent can complete full development workflow.
 
-**Next Goal**: Get GitHub Coding Agent to successfully merge its first PR.
+**Game Development Phase**: 🎮 Game-RFC-001 (Console Game Shell) in progress - building foundation for Breakout game.
+
+**RFC Coordination**: 📌 [Issue #3 - RFC Coordinator](https://github.com/GiantCroissant-Lunar/breakout-coding-agent/issues/3) (Pinned) - Central hub for all RFC implementations.
 
 ## 📚 Documentation
 
