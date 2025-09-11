@@ -27,60 +27,11 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Validate PR format
-      run: |
-        echo "Validating PR for auto-merge eligibility..."
-
-        # Use environment variables to avoid breaking the shell with multiline PR title/body
-        PR_TITLE="$PR_TITLE"
-
-        # Check if this is a Flow-RFC-001 PR (special validation)
-        if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
-          echo "ℹ️ Flow-RFC-001 PR detected - applying special validation"
-
-          # Validate only README.md changed
-          files_changed=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.number }}/files --jq '.[].filename' | wc -l)
-          if [ $files_changed -gt 1 ]; then
-            echo "❌ Too many files changed ($files_changed). Flow-RFC-001 should only change README.md"
-            exit 1
-          fi
-
-          # Check if README.md was changed
-          readme_changed=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.number }}/files --jq '.[] | select(.filename == "README.md") | .filename')
-          if [ -z "$readme_changed" ]; then
-            echo "❌ README.md not changed. Flow-RFC-001 requires README.md update"
-            exit 1
-          fi
-
-          echo "✅ Flow-RFC-001 validation passed"
-
-        # Check if this is a Game-RFC PR
-        elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
-          echo "ℹ️ Game-RFC PR detected"
-
-          # Extract RFC number for validation
-          RFC_NUM=$(echo "$PR_TITLE" | grep -o 'Game-RFC-[0-9]\+' | head -1)
-          echo "Processing $RFC_NUM"
-
-          # Validate PR references an issue using GitHub's own closing reference detection
-          CLOSING_COUNT=$(gh pr view ${{ github.event.number }} --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
-          if [ "${CLOSING_COUNT:-0}" -gt 0 ]; then
-            echo "✅ PR properly references issue (closing keywords detected)"
-          else
-            echo "❌ Game-RFC PRs must reference the implementation issue (use 'Closes #issue-number' or 'Fixes #issue-number')"
-            exit 1
-          fi
-
-          echo "✅ Game-RFC validation passed"
-
-        else
-          echo "ℹ️ Not a recognized RFC PR, skipping auto-merge"
-          exit 0
-        fi
-
-        echo "✅ PR validation completed successfully"
+      run: .github/scripts/validate_pr.sh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PR_TITLE: ${{ github.event.pull_request.title }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.number }}
 
     - name: Auto-approve and merge
       run: |
@@ -123,4 +74,3 @@ jobs:
         echo "GitHub Coding Agent can now reliably merge PRs."
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
