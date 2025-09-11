@@ -113,13 +113,19 @@ jobs:
                 print("🔍 Checking for abandoned issues...")
                 
                 try:
+                    # Use broader query then filter - gh CLI --assignee has issues with bot accounts
                     issues_json = self.run_gh(
-                        f'issue list --assignee="Copilot" --state=open --label=game-rfc --json number,title,assignees,createdAt'
+                        f'issue list --state=open --label=game-rfc --json number,title,assignees,createdAt'
                     )
                     issues = json.loads(issues_json) if issues_json else []
                     
                     abandoned_issues = []
                     for issue in issues:
+                        # Filter for Copilot-assigned issues
+                        assignee_logins = [assignee.get('login', '') for assignee in issue.get('assignees', [])]
+                        if 'Copilot' not in assignee_logins:
+                            continue
+                            
                         hours_since_assigned = self.get_time_diff_hours(issue['createdAt'])
                         
                         # Check if there's a PR for this issue
