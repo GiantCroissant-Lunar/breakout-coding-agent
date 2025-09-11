@@ -158,18 +158,7 @@ jobs:
                 pr_num = pr['number']
                 hours = pr['hours_stalled']
                 
-                comment = f"""@copilot This PR appears to be stalled ({hours:.1f} hours without updates). Can you continue implementing the remaining requirements?
-
-Please focus on:
-- Completing any pending acceptance criteria from the RFC specification
-- Running tests and fixing any failures
-- Moving from draft to ready for review when complete
-
-Let me know if you need any clarification on the requirements.
-
----
-
-🤖 *Automated intervention from RFC Health Monitor*"""
+                comment = f"@copilot This PR appears to be stalled ({hours:.1f} hours without updates). Can you continue implementing the remaining requirements? Please focus on: completing any pending acceptance criteria from the RFC specification, running tests and fixing any failures, and moving from draft to ready for review when complete. Let me know if you need any clarification on the requirements. --- 🤖 *Automated intervention from RFC Health Monitor*"
                 
                 try:
                     self.run_gh(f'pr comment {pr_num} --body "{comment}"')
@@ -195,13 +184,7 @@ Let me know if you need any clarification on the requirements.
                     self.run_gh(f'issue edit {issue_num} --add-assignee "copilot-swe-agent"')
                     
                     # Post explanation comment
-                    comment = f"""Issue reassigned to fresh GitHub Coding Agent instance after {hours:.1f} hours without PR creation.
-
-The RFC specification is available in the linked documentation. Please create a feature branch and begin implementation.
-
----
-
-🤖 *Automated intervention from RFC Health Monitor*"""
+                    comment = f"Issue reassigned to fresh GitHub Coding Agent instance after {hours:.1f} hours without PR creation. The RFC specification is available in the linked documentation. Please create a feature branch and begin implementation. --- 🤖 *Automated intervention from RFC Health Monitor*"
                     
                     self.run_gh(f'issue comment {issue_num} --body "{comment}"')
                     self.interventions_taken.append(f"🔄 Reassigned abandoned issue #{issue_num}")
@@ -212,15 +195,8 @@ The RFC specification is available in the linked documentation. Please create a 
             
             def generate_health_report(self, stalled_prs: List, abandoned_issues: List) -> str:
                 """Generate comprehensive health report"""
-                report = f"""# 📊 RFC Health Monitor Report
-
-**Timestamp**: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
-**Repository**: {self.repo}
-
-## 🎯 Current Status
-
-### Pull Requests Status
-"""
+                timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+                report = f"# 📊 RFC Health Monitor Report\\n\\n**Timestamp**: {timestamp}\\n**Repository**: {self.repo}\\n\\n## 🎯 Current Status\\n\\n### Pull Requests Status\\n"
                 
                 if stalled_prs:
                     report += f"- 🔴 **{len(stalled_prs)} stalled PR(s)** requiring intervention\n"

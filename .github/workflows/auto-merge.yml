@@ -63,15 +63,7 @@ jobs:
                 --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
               if [ -n "$issue_num" ]; then suggestion="Fixes #$issue_num"; fi
             fi
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body @- <<EOF
-Hi! This PR looks like a Game-RFC implementation but it doesn't reference its tracking issue. For full automation, please add a closing keyword to the PR description so the workflow can auto-merge it.
-
-Add this line to the PR description:
-
-$suggestion
-
-After updating, the Auto-merge workflow will re-run and merge automatically. Thanks!
-EOF
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Hi! This PR looks like a Game-RFC implementation but it doesn't reference its tracking issue. For full automation, please add a closing keyword to the PR description so the workflow can auto-merge it. Add this line to the PR description: $suggestion After updating, the Auto-merge workflow will re-run and merge automatically. Thanks!"
             exit 1
           fi
           echo "Game-RFC validation passed"
