@@ -3,6 +3,11 @@ name: Assign Copilot to Game-RFC Issues
 on:
   issues:
     types: [opened, reopened, labeled, edited]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Specific issue number to (re)assign (optional)'
+        required: false
 
 permissions:
   issues: write
@@ -14,10 +19,25 @@ jobs:
       contains(join(github.event.issue.labels.*.name, ','), 'game-rfc')
     runs-on: ubuntu-latest
     steps:
+    - name: Get GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
     - name: Ensure Copilot is assigned (REST)
       run: |
         set -euo pipefail
-        ISSUE=${{ github.event.issue.number }}
+        # Determine target issue(s)
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ -n "${{ github.event.inputs.issue }}" ]; then
+            ISSUE="${{ github.event.inputs.issue }}"
+          else
+            ISSUE=$(gh issue list --search "Game-RFC in:title" --label game-rfc --state open --limit 1 --sort created --json number --jq '.[0].number' || true)
+          fi
+        else
+          ISSUE=${{ github.event.issue.number }}
+        fi
         REPO=${{ github.repository }}
         echo "Checking assignment for issue #$ISSUE"
         ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
@@ -32,4 +52,4 @@ jobs:
           || echo "Warning: could not assign Coding Agent (copilot-swe-agent/Copilot)"
         gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
