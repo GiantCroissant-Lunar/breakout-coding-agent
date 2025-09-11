@@ -20,13 +20,14 @@ jobs:
       with:
         persist-credentials: true
         fetch-depth: 1
+
     - name: Auto-ready draft PRs
       run: |
         # If this is a draft PR from copilot, mark it ready automatically
         if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
-          echo "🚀 Draft PR detected - marking as ready for review"
+          echo "Draft PR detected - marking as ready for review"
           gh pr ready ${{ github.event.number }}
-          sleep 5  # Give GitHub time to process the change
+          sleep 5
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,11 +45,11 @@ jobs:
         if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
           echo "Flow-RFC-001 PR detected - validating only README.md changed"
           files_changed=$(gh api repos/"$REPO"/pulls/"$PR_NUMBER"/files --jq '.[].filename' | wc -l)
-          if [ "$files_changed" -gt 1 ]; then
-            echo "Too many files changed ($files_changed)"; exit 1; fi
+          if [ "$files_changed" -gt 1 ]; then echo "Too many files changed ($files_changed)"; exit 1; fi
           readme_changed=$(gh api repos/"$REPO"/pulls/"$PR_NUMBER"/files --jq '.[] | select(.filename == "README.md") | .filename')
           if [ -z "$readme_changed" ]; then echo "README.md not changed"; exit 1; fi
           echo "Flow-RFC-001 validation passed"
+
         elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
           echo "Game-RFC PR detected"
           closing_count=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
@@ -63,10 +64,11 @@ jobs:
                 --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
               if [ -n "$issue_num" ]; then suggestion="Fixes #$issue_num"; fi
             fi
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "Hi! This PR looks like a Game-RFC implementation but it doesn't reference its tracking issue. For full automation, please add a closing keyword to the PR description so the workflow can auto-merge it. Add this line to the PR description: $suggestion After updating, the Auto-merge workflow will re-run and merge automatically. Thanks!"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "This PR looks like a Game-RFC implementation but doesn’t reference its tracking issue. Please add: $suggestion"
             exit 1
           fi
           echo "Game-RFC validation passed"
+
         else
           echo "Not a recognized RFC PR, skipping auto-merge"; exit 0
         fi
@@ -76,6 +78,9 @@ jobs:
 
     - name: Auto-approve and merge
       run: |
+        set -euo pipefail
+        REPO="${{ github.repository }}"
+        PR_NUM="${{ github.event.number }}"
         PR_TITLE="${{ github.event.pull_request.title }}"
 
         if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
@@ -90,20 +95,22 @@ jobs:
           MERGE_MSG="✅ Auto-merged $RFC_NUM implementation"
 
         else
-          echo "❌ Unexpected PR type reached auto-merge step"
-          exit 1
+          CLOSING_COUNT=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+          if [ "${CLOSING_COUNT:-0}" -gt 0 ]; then
+            echo "Auto-approving Copilot PR with closing reference"
+            APPROVAL_MSG="✅ Auto-approved: Copilot PR with closing reference"
+            MERGE_MSG="✅ Auto-merged Copilot PR with closing reference"
+          else
+            echo "❌ Unexpected PR type and no closing reference; stopping"
+            exit 1
+          fi
         fi
 
         # Auto-approve and merge the PR (fully automated)
-        echo "🤖 Auto-approving and merging RFC implementation..."
-        gh pr review ${{ github.event.number }} --approve --body "$APPROVAL_MSG"
-
-        # Wait a moment for approval to register
+        echo "🤖 Auto-approving and merging PR..."
+        gh pr review "$PR_NUM" --approve --body "$APPROVAL_MSG"
         sleep 5
-
-        # Auto-merge with branch deletion (fully automated)
-        gh pr merge ${{ github.event.number }} --squash --delete-branch --body "$MERGE_MSG"
-
+        gh pr merge "$PR_NUM" --squash --delete-branch --body "$MERGE_MSG"
         echo "✅ PR merged successfully"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -111,7 +118,8 @@ jobs:
     - name: Update Flow-RFC status
       if: success()
       run: |
-        echo "Flow-RFC-001 completed successfully! 🎉"
+        echo "Flow-RFC-001 completed successfully!"
         echo "GitHub Coding Agent can now reliably merge PRs."
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
