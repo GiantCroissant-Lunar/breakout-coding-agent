@@ -1,0 +1,300 @@
+name: RFC Health Monitor
+
+on:
+  schedule:
+    # Run every 30 minutes during active hours (9 AM - 9 PM UTC)
+    - cron: '*/30 9-21 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      force_interventions:
+        description: 'Force interventions even if not meeting time thresholds'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Get GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        
+    - name: Check out code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Run RFC Health Monitor
+      run: |
+        python3 << 'EOF'
+        import json
+        import subprocess
+        import datetime
+        import os
+        from typing import Dict, List, Optional
+
+        class RFCHealthMonitor:
+            def __init__(self):
+                self.repo = "${{ github.repository }}"
+                self.force_interventions = "${{ github.event.inputs.force_interventions }}" == "true"
+                self.interventions_taken = []
+                
+            def run_gh(self, cmd: str) -> str:
+                """Execute GitHub CLI command"""
+                try:
+                    result = subprocess.run(
+                        f"gh {cmd}", shell=True, capture_output=True, text=True, check=True
+                    )
+                    return result.stdout.strip()
+                except subprocess.CalledProcessError as e:
+                    print(f"Error: {e.stderr}")
+                    return ""
+            
+            def get_time_diff_hours(self, timestamp: str) -> float:
+                """Calculate hours since timestamp"""
+                try:
+                    dt = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    return (now - dt).total_seconds() / 3600
+                except:
+                    return 0
+            
+            def check_stalled_prs(self) -> List[Dict]:
+                """Check for stalled PRs from GitHub Coding Agent"""
+                print("🔍 Checking for stalled PRs...")
+                
+                try:
+                    prs_json = self.run_gh(
+                        f'pr list --author="app/copilot-swe-agent" --json number,title,updatedAt,isDraft,headRefName'
+                    )
+                    prs = json.loads(prs_json) if prs_json else []
+                    
+                    stalled_prs = []
+                    for pr in prs:
+                        hours_since_update = self.get_time_diff_hours(pr['updatedAt'])
+                        
+                        # Consider stalled if >2 hours without update (or force mode)
+                        is_stalled = hours_since_update > 2 or self.force_interventions
+                        
+                        status = "🟢 Active" if hours_since_update < 1 else \
+                                "🟡 Slowing" if hours_since_update < 2 else \
+                                "🔴 STALLED"
+                        
+                        print(f"  PR #{pr['number']}: {pr['title'][:50]}...")
+                        print(f"    Last update: {hours_since_update:.1f}h ago ({status})")
+                        
+                        if is_stalled:
+                            stalled_prs.append({
+                                **pr,
+                                'hours_stalled': hours_since_update
+                            })
+                    
+                    return stalled_prs
+                    
+                except Exception as e:
+                    print(f"Error checking PRs: {e}")
+                    return []
+            
+            def check_abandoned_issues(self) -> List[Dict]:
+                """Check for issues assigned >24 hours without PR"""
+                print("🔍 Checking for abandoned issues...")
+                
+                try:
+                    issues_json = self.run_gh(
+                        f'issue list --assignee="Copilot" --state=open --label=game-rfc --json number,title,assignees,createdAt'
+                    )
+                    issues = json.loads(issues_json) if issues_json else []
+                    
+                    abandoned_issues = []
+                    for issue in issues:
+                        hours_since_assigned = self.get_time_diff_hours(issue['createdAt'])
+                        
+                        # Check if there's a PR for this issue
+                        issue_num = issue['number']
+                        prs_json = self.run_gh(
+                            f'pr list --search "Fixes #{issue_num}" --json number'
+                        )
+                        has_pr = len(json.loads(prs_json) if prs_json else []) > 0
+                        
+                        # Consider abandoned if >24 hours assigned without PR (or force mode)
+                        is_abandoned = (hours_since_assigned > 24 and not has_pr) or self.force_interventions
+                        
+                        status = "🟢 Active" if has_pr else \
+                                "🟡 Recent" if hours_since_assigned < 8 else \
+                                "🟠 Delayed" if hours_since_assigned < 24 else \
+                                "🔴 ABANDONED"
+                        
+                        print(f"  Issue #{issue_num}: {issue['title'][:50]}...")
+                        print(f"    Assigned: {hours_since_assigned:.1f}h ago, Has PR: {has_pr} ({status})")
+                        
+                        if is_abandoned:
+                            abandoned_issues.append({
+                                **issue,
+                                'hours_abandoned': hours_since_assigned
+                            })
+                    
+                    return abandoned_issues
+                    
+                except Exception as e:
+                    print(f"Error checking issues: {e}")
+                    return []
+            
+            def reactivate_stalled_pr(self, pr: Dict) -> None:
+                """Post reactivation comment on stalled PR"""
+                pr_num = pr['number']
+                hours = pr['hours_stalled']
+                
+                comment = f"""@copilot This PR appears to be stalled ({hours:.1f} hours without updates). Can you continue implementing the remaining requirements?
+
+Please focus on:
+- Completing any pending acceptance criteria from the RFC specification
+- Running tests and fixing any failures
+- Moving from draft to ready for review when complete
+
+Let me know if you need any clarification on the requirements.
+
+---
+
+🤖 *Automated intervention from RFC Health Monitor*"""
+                
+                try:
+                    self.run_gh(f'pr comment {pr_num} --body "{comment}"')
+                    self.interventions_taken.append(f"🔄 Reactivated stalled PR #{pr_num}")
+                    print(f"✅ Posted reactivation comment on PR #{pr_num}")
+                except Exception as e:
+                    print(f"❌ Failed to reactivate PR #{pr_num}: {e}")
+            
+            def reassign_abandoned_issue(self, issue: Dict) -> None:
+                """Reassign abandoned issue to fresh GitHub Coding Agent"""
+                issue_num = issue['number']
+                hours = issue['hours_abandoned']
+                
+                try:
+                    # Remove current assignment
+                    self.run_gh(f'issue edit {issue_num} --remove-assignee "Copilot"')
+                    
+                    # Wait a moment
+                    import time
+                    time.sleep(2)
+                    
+                    # Reassign to fresh instance
+                    self.run_gh(f'issue edit {issue_num} --add-assignee "copilot-swe-agent"')
+                    
+                    # Post explanation comment
+                    comment = f"""Issue reassigned to fresh GitHub Coding Agent instance after {hours:.1f} hours without PR creation.
+
+The RFC specification is available in the linked documentation. Please create a feature branch and begin implementation.
+
+---
+
+🤖 *Automated intervention from RFC Health Monitor*"""
+                    
+                    self.run_gh(f'issue comment {issue_num} --body "{comment}"')
+                    self.interventions_taken.append(f"🔄 Reassigned abandoned issue #{issue_num}")
+                    print(f"✅ Reassigned issue #{issue_num}")
+                    
+                except Exception as e:
+                    print(f"❌ Failed to reassign issue #{issue_num}: {e}")
+            
+            def generate_health_report(self, stalled_prs: List, abandoned_issues: List) -> str:
+                """Generate comprehensive health report"""
+                report = f"""# 📊 RFC Health Monitor Report
+
+**Timestamp**: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
+**Repository**: {self.repo}
+
+## 🎯 Current Status
+
+### Pull Requests Status
+"""
+                
+                if stalled_prs:
+                    report += f"- 🔴 **{len(stalled_prs)} stalled PR(s)** requiring intervention\n"
+                    for pr in stalled_prs:
+                        report += f"  - PR #{pr['number']}: {pr['hours_stalled']:.1f}h stalled\n"
+                else:
+                    report += "- 🟢 **All PRs active** - no stalled implementations detected\n"
+                
+                report += "\n### Issues Status\n"
+                if abandoned_issues:
+                    report += f"- 🔴 **{len(abandoned_issues)} abandoned issue(s)** requiring reassignment\n"
+                    for issue in abandoned_issues:
+                        report += f"  - Issue #{issue['number']}: {issue['hours_abandoned']:.1f}h without PR\n"
+                else:
+                    report += "- 🟢 **All issues active** - no abandoned assignments detected\n"
+                
+                report += f"\n## 🔧 Interventions Taken\n"
+                if self.interventions_taken:
+                    for intervention in self.interventions_taken:
+                        report += f"- {intervention}\n"
+                else:
+                    report += "- ✅ **No interventions needed** - system operating normally\n"
+                
+                report += f"\n## 📈 Health Metrics\n"
+                report += f"- **Monitoring Frequency**: Every 30 minutes during active hours\n"
+                report += f"- **Stall Threshold**: 2 hours without PR updates\n"
+                report += f"- **Abandonment Threshold**: 24 hours without PR creation\n"
+                report += f"- **Automation Status**: {'🟢 Operating' if not (stalled_prs or abandoned_issues) else '🟡 Intervening'}\n"
+                
+                return report
+            
+            def run(self) -> None:
+                """Main monitoring execution"""
+                print("🏥 Starting RFC Health Monitor...")
+                
+                # Check for problems
+                stalled_prs = self.check_stalled_prs()
+                abandoned_issues = self.check_abandoned_issues()
+                
+                # Take interventions
+                for pr in stalled_prs:
+                    self.reactivate_stalled_pr(pr)
+                
+                for issue in abandoned_issues:
+                    self.reassign_abandoned_issue(issue)
+                
+                # Generate and display report
+                report = self.generate_health_report(stalled_prs, abandoned_issues)
+                print("\n" + "="*80)
+                print(report)
+                print("="*80)
+                
+                # Save report for potential commenting
+                with open('/tmp/health_report.md', 'w') as f:
+                    f.write(report)
+
+        # Run the monitor
+        monitor = RFCHealthMonitor()
+        monitor.run()
+        EOF
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        
+    - name: Post health report to coordinator issue
+      if: always()
+      run: |
+        # Find RFC Coordinator issue
+        COORDINATOR_ISSUE=$(gh issue list --label coordinator --json number --jq '.[0].number' || echo "")
+        
+        if [ -n "$COORDINATOR_ISSUE" ] && [ -f "/tmp/health_report.md" ]; then
+          echo "📊 Posting health report to coordinator issue #$COORDINATOR_ISSUE"
+          gh issue comment $COORDINATOR_ISSUE --body-file /tmp/health_report.md
+        else
+          echo "📊 Health report generated but no coordinator issue found"
+        fi
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
