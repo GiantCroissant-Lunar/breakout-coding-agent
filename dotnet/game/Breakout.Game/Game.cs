@@ -123,14 +123,14 @@ public class Game
                 {
                     State = GameState.Paused;
                 }
-                // Arrow key handling will be used by paddle in future RFCs
+                // Handle paddle movement
                 if (InputSystem.IsLeftPressed(key))
                 {
-                    // Paddle movement left (placeholder for future RFC)
+                    Paddle.MoveLeft();
                 }
                 if (InputSystem.IsRightPressed(key))
                 {
-                    // Paddle movement right (placeholder for future RFC)
+                    Paddle.MoveRight();
                 }
                 break;
                 
@@ -166,8 +166,12 @@ public class Game
                 
             case GameState.Playing:
                 // Store previous ball position for clearing
-                int prevX = Ball.X;
-                int prevY = Ball.Y;
+                int prevBallX = Ball.X;
+                int prevBallY = Ball.Y;
+                
+                // Store previous paddle position for clearing
+                int prevPaddleX = Paddle.X;
+                int prevPaddleY = Paddle.Y;
                 
                 // Update ball physics
                 BallSystem.Update(Ball, Paddle);
@@ -178,8 +182,15 @@ public class Game
                     State = GameState.GameOver;
                 }
                 
-                // Clear previous ball position
-                RenderSystem.ClearPosition(prevX, prevY);
+                // Clear previous positions (ball)
+                RenderSystem.ClearPosition(prevBallX, prevBallY);
+                
+                // Clear previous paddle position (to prevent artifacts if it moved)
+                if (prevPaddleX != Paddle.X)
+                {
+                    Console.SetCursorPosition(prevPaddleX, prevPaddleY);
+                    Console.Write(new string(' ', Paddle.Width));
+                }
                 break;
                 
             case GameState.Paused:
