@@ -36,6 +36,26 @@ elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
     echo "✅ PR properly references issue (closing keywords detected)"
   else
     echo "❌ Game-RFC PRs must reference the implementation issue (use 'Closes #issue-number' or 'Fixes #issue-number')"
+
+    # Try to suggest the exact issue number based on RFC number in the title
+    rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
+    suggestion=""
+    if [ -n "$rfc_num" ]; then
+      issue_num=$(gh issue list --repo "$REPO" --state open --label game-rfc --json number,title \
+        --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
+      if [ -n "$issue_num" ]; then
+        suggestion="# Add this line to the PR description\\n\\nFixes #$issue_num"
+      fi
+    fi
+
+    gh pr comment "$PR_NUMBER" --repo "$REPO" --body @- <<EOF
+Hi! This PR looks like a Game-RFC implementation but it doesn't reference its tracking issue. For full automation, please add a closing keyword to the PR description so the workflow can auto-merge it.
+
+Recommended format:
+${suggestion:-Fixes #<issue-number>}
+
+Once updated, the Auto-merge workflow will re-run and proceed automatically. Thanks!
+EOF
     exit 1
   fi
 
@@ -46,4 +66,3 @@ else
 fi
 
 echo "✅ PR validation completed successfully"
-
