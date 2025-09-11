@@ -11,7 +11,6 @@ on:
         description: 'Force interventions even if not meeting time thresholds'
         required: false
         default: 'false'
-        type: boolean
 
 permissions:
   contents: read
