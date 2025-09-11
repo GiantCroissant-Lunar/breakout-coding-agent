@@ -30,8 +30,9 @@ jobs:
       run: |
         echo "Validating PR for auto-merge eligibility..."
         
-        PR_TITLE="${{ github.event.pull_request.title }}"
-        PR_BODY="${{ github.event.pull_request.body }}"
+        # Use environment variables to avoid breaking the shell with multiline PR body
+        PR_TITLE="$PR_TITLE"
+        PR_BODY="$PR_BODY"
         
         # Check if this is a Flow-RFC-001 PR (special validation)
         if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
@@ -79,6 +80,8 @@ jobs:
         echo "✅ PR validation completed successfully"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
     
     - name: Auto-approve and merge
       run: |
