@@ -42,7 +42,7 @@ jobs:
           echo "Searching for GitHub Coding Agent PRs..."
           
           # Get all open PRs from copilot-swe-agent
-          agent_prs=$(gh pr list --author copilot-swe-agent --state open --json number,headRefName,createdAt --limit 10)
+          agent_prs=$(gh pr list --author "app/copilot-swe-agent" --state open --json number,headRefName,createdAt --limit 10)
           
           if [ "$agent_prs" = "[]" ]; then
             echo "No GitHub Coding Agent PRs found"
