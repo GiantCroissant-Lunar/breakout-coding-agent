@@ -1,20 +1,29 @@
-using System;
-
 namespace Breakout.Game;
 
+/// <summary>
+/// Entry point for the Breakout game
+/// </summary>
 public class Program
 {
+    /// <summary>
+    /// Main entry point
+    /// </summary>
+    /// <param name="args">Command line arguments</param>
     public static void Main(string[] args)
     {
-        Console.WriteLine("🎮 Breakout Game - Flow-RFC-001 Test");
-        Console.WriteLine("Game structure ready for GitHub Coding Agent implementation.");
-        Console.WriteLine("Status: Waiting for Flow-RFC-001 validation...");
-        
-        // Only wait for input if console is available
-        if (!Console.IsInputRedirected)
+        try
         {
+            var game = new Game();
+            game.Run();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
             Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            if (!Console.IsInputRedirected)
+            {
+                Console.ReadKey();
+            }
         }
     }
 }
