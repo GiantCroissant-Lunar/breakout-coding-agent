@@ -23,11 +23,13 @@ jobs:
         ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
         if echo "$ASSIGNEES" | grep -Eq '^(copilot-swe-agent|Copilot)$'; then
           echo "Coding Agent already assigned"
+          gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
           exit 0
         fi
         echo "Assigning Coding Agent via REST"
         gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=copilot-swe-agent \
           || gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot \
           || echo "Warning: could not assign Coding Agent (copilot-swe-agent/Copilot)"
+        gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
