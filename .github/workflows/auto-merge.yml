@@ -111,7 +111,7 @@ jobs:
         
         echo "✅ PR merged successfully"
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Update Flow-RFC status
       if: success()
