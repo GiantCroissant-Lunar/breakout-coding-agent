@@ -1,3 +1,5 @@
+using Breakout.Game.Utilities;
+
 namespace Breakout.Game.Models;
 
 /// <summary>
@@ -32,5 +34,29 @@ public class Paddle
     {
         Character = '█';
         Width = 8; // Default width
+    }
+    
+    /// <summary>
+    /// Moves the paddle left while respecting left boundary
+    /// </summary>
+    public void MoveLeft()
+    {
+        int newX = X - PaddleConstants.MovementSpeed;
+        if (newX >= 0)
+        {
+            X = newX;
+        }
+    }
+    
+    /// <summary>
+    /// Moves the paddle right while respecting right boundary
+    /// </summary>
+    public void MoveRight()
+    {
+        int newX = X + PaddleConstants.MovementSpeed;
+        if (newX + Width <= Constants.CONSOLE_WIDTH)
+        {
+            X = newX;
+        }
     }
 }

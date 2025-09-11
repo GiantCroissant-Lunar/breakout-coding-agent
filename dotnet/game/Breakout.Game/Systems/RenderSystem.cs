@@ -76,8 +76,8 @@ public static class RenderSystem
         Console.WriteLine("Press SPACE to start playing");
         Console.SetCursorPosition(25, 14);
         Console.WriteLine("Press ESC to exit");
-        Console.SetCursorPosition(10, 20);
-        Console.WriteLine("Use LEFT/RIGHT arrow keys to move paddle (when implemented)");
+        Console.SetCursorPosition(15, 20);
+        Console.WriteLine("Use LEFT/RIGHT arrow keys to move paddle");
     }
     
     /// <summary>
