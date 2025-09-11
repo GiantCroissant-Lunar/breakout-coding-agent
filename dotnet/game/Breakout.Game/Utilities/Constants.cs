@@ -35,3 +35,60 @@ public static class Constants
     /// </summary>
     public const ConsoleColor FOREGROUND_COLOR = ConsoleColor.White;
 }
+
+/// <summary>
+/// Ball-related constants
+/// </summary>
+public static class BallConstants
+{
+    /// <summary>
+    /// Default ball character
+    /// </summary>
+    public const char DefaultCharacter = '●';
+    
+    /// <summary>
+    /// Starting X position (center of console)
+    /// </summary>
+    public const int StartX = 40;
+    
+    /// <summary>
+    /// Starting Y position (upper portion)
+    /// </summary>
+    public const int StartY = 12;
+    
+    /// <summary>
+    /// Initial horizontal velocity
+    /// </summary>
+    public const int InitialDeltaX = 1;
+    
+    /// <summary>
+    /// Initial vertical velocity
+    /// </summary>
+    public const int InitialDeltaY = 1;
+    
+    /// <summary>
+    /// Default ball color
+    /// </summary>
+    public const ConsoleColor DefaultColor = ConsoleColor.White;
+}
+
+/// <summary>
+/// Paddle-related constants
+/// </summary>
+public static class PaddleConstants
+{
+    /// <summary>
+    /// Default paddle width
+    /// </summary>
+    public const int DefaultWidth = 8;
+    
+    /// <summary>
+    /// Default paddle character
+    /// </summary>
+    public const char DefaultCharacter = '█';
+    
+    /// <summary>
+    /// Default paddle color
+    /// </summary>
+    public const ConsoleColor DefaultColor = ConsoleColor.Cyan;
+}
