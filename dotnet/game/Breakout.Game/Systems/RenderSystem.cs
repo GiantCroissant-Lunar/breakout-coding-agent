@@ -85,14 +85,10 @@ public static class RenderSystem
     /// </summary>
     private static void RenderGame()
     {
-        Console.SetCursorPosition(30, 10);
-        Console.WriteLine("🎮 GAME PLAYING 🎮");
-        Console.SetCursorPosition(20, 12);
-        Console.WriteLine("Game objects will appear here");
-        Console.SetCursorPosition(25, 14);
-        Console.WriteLine("Press ESC to exit");
-        Console.SetCursorPosition(25, 16);
-        Console.WriteLine("Press SPACE to pause");
+        // Game objects will be rendered here by the main game loop
+        // This method now just renders the UI elements
+        Console.SetCursorPosition(25, 1);
+        Console.WriteLine("Press ESC to exit | SPACE to pause");
     }
     
     /// <summary>
@@ -140,5 +136,59 @@ public static class RenderSystem
         Console.CursorVisible = true;
         Console.ResetColor();
         Console.Clear();
+    }
+    
+    /// <summary>
+    /// Draws a ball at its current position
+    /// </summary>
+    /// <param name="ball">Ball to draw</param>
+    public static void DrawBall(Ball ball)
+    {
+        if (!ball.IsActive) return;
+        
+        Console.SetCursorPosition(ball.X, ball.Y);
+        Console.ForegroundColor = BallConstants.DefaultColor;
+        Console.Write(ball.Character);
+        Console.ResetColor();
+    }
+    
+    /// <summary>
+    /// Clears a position on the screen
+    /// </summary>
+    /// <param name="x">X coordinate</param>
+    /// <param name="y">Y coordinate</param>
+    public static void ClearPosition(int x, int y)
+    {
+        if (x >= 0 && x < Console.WindowWidth && y >= 0 && y < Console.WindowHeight)
+        {
+            Console.SetCursorPosition(x, y);
+            Console.Write(' ');
+        }
+    }
+    
+    /// <summary>
+    /// Draws a paddle at its current position
+    /// </summary>
+    /// <param name="paddle">Paddle to draw</param>
+    public static void DrawPaddle(Paddle paddle)
+    {
+        if (paddle == null) return;
+        
+        Console.SetCursorPosition(paddle.X, paddle.Y);
+        Console.ForegroundColor = PaddleConstants.DefaultColor;
+        Console.Write(new string(paddle.Character, paddle.Width));
+        Console.ResetColor();
+    }
+    
+    /// <summary>
+    /// Clears a paddle from the screen
+    /// </summary>
+    /// <param name="paddle">Paddle to clear</param>
+    public static void ClearPaddle(Paddle paddle)
+    {
+        if (paddle == null) return;
+        
+        Console.SetCursorPosition(paddle.X, paddle.Y);
+        Console.Write(new string(' ', paddle.Width));
     }
 }
