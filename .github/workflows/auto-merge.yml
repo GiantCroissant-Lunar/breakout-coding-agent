@@ -8,7 +8,7 @@ on:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'copilot/') && github.actor == 'copilot-swe-agent[bot]'
+    if: startsWith(github.head_ref, 'copilot/')
     
     steps:
     - name: Check out code
