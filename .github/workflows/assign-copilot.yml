@@ -1,0 +1,30 @@
+name: Assign Copilot to Game-RFC Issues
+
+on:
+  issues:
+    types: [opened, reopened, labeled, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  assign:
+    if: |
+      contains(github.event.issue.title, 'Game-RFC-') ||
+      contains(join(github.event.issue.labels.*.name, ','), 'game-rfc')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Ensure Copilot is assigned
+      run: |
+        ISSUE=${{ github.event.issue.number }}
+        echo "Checking assignment for issue #$ISSUE"
+        ASSIGNEES=$(gh issue view "$ISSUE" --json assignees --jq '.assignees[].login' || true)
+        if ! echo "$ASSIGNEES" | grep -q '^copilot-swe-agent$'; then
+          echo "Assigning copilot-swe-agent to #$ISSUE"
+          gh issue edit "$ISSUE" --add-assignee copilot-swe-agent
+        else
+          echo "copilot-swe-agent already assigned"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
