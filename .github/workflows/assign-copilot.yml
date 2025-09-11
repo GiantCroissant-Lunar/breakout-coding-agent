@@ -14,19 +14,20 @@ jobs:
       contains(join(github.event.issue.labels.*.name, ','), 'game-rfc')
     runs-on: ubuntu-latest
     steps:
-    - name: Ensure Copilot is assigned
+    - name: Ensure Copilot is assigned (REST)
       run: |
+        set -euo pipefail
         ISSUE=${{ github.event.issue.number }}
         REPO=${{ github.repository }}
         echo "Checking assignment for issue #$ISSUE"
-        ASSIGNEES=$(gh issue view "$ISSUE" --repo "$REPO" --json assignees --jq '.assignees[].login' || true)
-        if ! echo "$ASSIGNEES" | grep -Eq '^(copilot-swe-agent|Copilot)$'; then
-          echo "Assigning GitHub Coding Agent to #$ISSUE"
-          gh issue edit "$ISSUE" --repo "$REPO" --add-assignee copilot-swe-agent \
-            || gh issue edit "$ISSUE" --repo "$REPO" --add-assignee Copilot \
-            || echo "Warning: could not assign Coding Agent (copilot-swe-agent/Copilot)"
-        else
-          echo "copilot-swe-agent already assigned"
+        ASSIGNEES=$(gh api repos/"$REPO"/issues/"$ISSUE" --jq '.assignees[].login' || true)
+        if echo "$ASSIGNEES" | grep -Eq '^(copilot-swe-agent|Copilot)$'; then
+          echo "Coding Agent already assigned"
+          exit 0
         fi
+        echo "Assigning Coding Agent via REST"
+        gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=copilot-swe-agent \
+          || gh api repos/"$REPO"/issues/"$ISSUE"/assignees -X POST -f assignees[]=Copilot \
+          || echo "Warning: could not assign Coding Agent (copilot-swe-agent/Copilot)"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
