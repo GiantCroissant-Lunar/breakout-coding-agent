@@ -24,12 +24,14 @@ jobs:
       )) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-    - name: Get GitHub App token
-      id: app-token
-      uses: actions/create-github-app-token@v1
-      with:
-        app-id: ${{ secrets.APP_ID }}
-        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    - name: Resolve token for assignment
+      id: tokens
+      run: |
+        if [ -n "${{ secrets.COPILOT_ASSIGN_TOKEN }}" ]; then
+          echo "GH_TOKEN_SOURCE=PAT" >> $GITHUB_ENV
+        else
+          echo "GH_TOKEN_SOURCE=APP" >> $GITHUB_ENV
+        fi
     - name: Ensure Copilot is assigned (REST)
       run: |
         set -euo pipefail
@@ -56,4 +58,5 @@ jobs:
           || echo "Warning: could not assign Coding Agent (Copilot)"
         gh issue comment "$ISSUE" --repo "$REPO" --body "@copilot please start implementation" || true
       env:
-        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        # Prefer maintainer PAT for assignment; fallback to App token if PAT is not set
+        GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
