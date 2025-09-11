@@ -244,17 +244,17 @@ Please implement Game-RFC-{rfc_num:03d} according to the specification in `{file
             # Extract issue URL from result
             issue_url = result.strip() if result else "Unknown"
             
-            # Assign to repository owner/maintainer (who can then trigger Copilot)
+            # Assign to GitHub Coding Agent using the correct user identifier
             try:
                 issue_number = issue_url.split('/')[-1] if issue_url != "Unknown" else None
                 if issue_number:
-                    # Try assigning to ApprenticeGC (repository maintainer)
-                    assign_cmd = f'issue edit {issue_number} --add-assignee ApprenticeGC'
+                    # Use copilot-swe-agent which GitHub maps to Copilot automatically
+                    assign_cmd = f'issue edit {issue_number} --add-assignee copilot-swe-agent'
                     self.run_gh_command(assign_cmd)
-                    print(f"✅ Assigned issue to ApprenticeGC for Copilot activation")
+                    print(f"✅ Assigned issue to copilot-swe-agent (GitHub Coding Agent)")
             except Exception as e:
-                print(f"⚠️ Could not assign issue: {e}")
-                print("   Issue created successfully but manual assignment may be needed")
+                print(f"⚠️ Could not assign to GitHub Coding Agent: {e}")
+                print("   Issue created successfully but GitHub Coding Agent may not activate")
             
             print(f"✅ Created issue: {issue_url}")
             return issue_url
