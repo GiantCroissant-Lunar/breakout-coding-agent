@@ -1,0 +1,64 @@
+name: RFC Health Monitor Simple
+
+on:
+  schedule:
+    # Run every 5 minutes for testing
+    - cron: '*/5 * * * *'
+  
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Get GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        
+    - name: Check out code
+      uses: actions/checkout@v4
+        
+    - name: Check RFC Health
+      run: |
+        echo "=== RFC Health Monitor ==="
+        echo "Timestamp: $(date)"
+        
+        echo "Checking active PRs from GitHub Coding Agent..."
+        gh pr list --author="app/copilot-swe-agent" --json number,title,updatedAt,isDraft || echo "No PRs found"
+        
+        echo "Checking assigned Game-RFC issues..."
+        gh issue list --assignee="Copilot" --state=open --label=game-rfc --json number,title,createdAt || echo "No issues found"
+        
+        echo "Checking recent workflow activity..."
+        gh run list --limit 5 --json name,status,conclusion,createdAt,headBranch | grep -i copilot || echo "No recent Copilot activity"
+        
+        echo "Health check completed successfully!"
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        
+    - name: Simple Intervention Test
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "Testing intervention capabilities..."
+        
+        # Find any open PR from Copilot
+        PR_NUM=$(gh pr list --author="app/copilot-swe-agent" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        
+        if [ -n "$PR_NUM" ]; then
+          echo "Found test PR #$PR_NUM - posting test intervention comment"
+          gh pr comment "$PR_NUM" --body "Automated health check - monitoring system is operational. This comment validates intervention capabilities."
+          echo "Test intervention successful!"
+        else
+          echo "No PRs available for intervention testing"
+        fi
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
