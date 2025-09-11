@@ -66,10 +66,7 @@ public class Game
         BallSystem.InitializeBall(Ball);
         
         // Initialize paddle
-        Paddle.X = (Constants.CONSOLE_WIDTH - PaddleConstants.DefaultWidth) / 2;
-        Paddle.Y = Constants.CONSOLE_HEIGHT - 3;
-        Paddle.Width = PaddleConstants.DefaultWidth;
-        Paddle.Character = PaddleConstants.DefaultCharacter;
+        PaddleSystem.InitializePaddle(Paddle);
     }
     
     /// <summary>
@@ -126,11 +123,11 @@ public class Game
                 // Handle paddle movement
                 if (InputSystem.IsLeftPressed(key))
                 {
-                    Paddle.MoveLeft();
+                    PaddleSystem.MoveLeft(Paddle);
                 }
                 if (InputSystem.IsRightPressed(key))
                 {
-                    Paddle.MoveRight();
+                    PaddleSystem.MoveRight(Paddle);
                 }
                 break;
                 
@@ -172,6 +169,9 @@ public class Game
                 // Store previous paddle position for clearing
                 int prevPaddleX = Paddle.X;
                 int prevPaddleY = Paddle.Y;
+                
+                // Update paddle system
+                PaddleSystem.Update(Paddle);
                 
                 // Update ball physics
                 BallSystem.Update(Ball, Paddle);
