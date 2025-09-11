@@ -237,12 +237,23 @@ Please implement Game-RFC-{rfc_num:03d} according to the specification in `{file
         try:
             # Create issue with proper escaping for shell command
             issue_body_escaped = issue_body.replace('"', '\\"').replace('`', '\\`')
-            cmd = f'issue create --title "{issue_title}" --body "{issue_body_escaped}" --label game-rfc --assignee Copilot'
+            cmd = f'issue create --title "{issue_title}" --body "{issue_body_escaped}" --label game-rfc'
             
             result = self.run_gh_command(cmd)
             
             # Extract issue URL from result
             issue_url = result.strip() if result else "Unknown"
+            
+            # Try to assign to Copilot (may fail but issue will still be created)
+            try:
+                issue_number = issue_url.split('/')[-1] if issue_url != "Unknown" else None
+                if issue_number:
+                    assign_cmd = f'issue edit {issue_number} --add-assignee Copilot'
+                    self.run_gh_command(assign_cmd)
+                    print(f"✅ Assigned issue to Copilot")
+            except Exception as e:
+                print(f"⚠️ Could not assign to Copilot: {e}")
+                print("   Issue created successfully but manual assignment may be needed")
             
             print(f"✅ Created issue: {issue_url}")
             return issue_url
