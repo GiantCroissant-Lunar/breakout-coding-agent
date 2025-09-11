@@ -132,10 +132,24 @@ jobs:
               if git push origin "$branch_name" --force; then
                 echo "Successfully reset branch $branch_name to latest main"
                 
-                # Comment on PR explaining the reset
-                comment_body="Branch Reset to Latest Main\n\nWhat happened: Your branch was $behind_count commits behind main and had been active for $age_hours hours.\n\nAction taken: Reset your branch to the latest main branch to ensure you're working with the most recent codebase and avoid merge conflicts.\n\nWhat's next: Please continue implementing the RFC requirements. You now have all the latest improvements from main branch.\n\nBenefits:\n- No merge conflicts\n- Latest main branch features available\n- Clean starting point for continued development\n\n--- Automated branch reset from Force Reset Workflow"
+                # Close PR to trigger fresh start
+                echo "Closing PR #$pr_number to trigger fresh start after branch reset"
+                close_comment="Branch Reset Complete - Closing to Trigger Fresh Start\n\nYour branch was $behind_count commits behind main and had been active for $age_hours hours. The branch has been reset to the latest main to avoid merge conflicts.\n\nClosing and reopening this PR to trigger a fresh implementation cycle with the clean codebase.\n\n--- Automated branch reset from Force Reset Workflow"
                 
-                gh pr comment "$pr_number" --body "$comment_body"
+                gh pr close "$pr_number" --comment "$close_comment"
+                
+                # Brief pause to ensure the close is processed
+                echo "Waiting 3 seconds for PR close to process..."
+                sleep 3
+                
+                # Reopen PR with Copilot activation
+                echo "Reopening PR #$pr_number with fresh start signal"
+                reopen_comment="@copilot Please restart implementation from this clean branch.\n\nThe branch has been reset to the latest main branch with all recent improvements. Please continue implementing the original RFC requirements from this fresh starting point.\n\nBenefits of this reset:\n- No merge conflicts\n- Latest main branch features available\n- Clean starting point for continued development\n\nPlease proceed with the implementation."
+                
+                gh pr reopen "$pr_number"
+                gh pr comment "$pr_number" --body "$reopen_comment"
+                
+                echo "Successfully completed reset-restart cycle for PR #$pr_number"
                 
               else
                 echo "Failed to reset branch $branch_name"
