@@ -43,7 +43,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Pre-validate: ensure closing reference for Game-RFC PRs
+    - name: \ Pre-validate: ensure closing reference for Game-RFC PRs\
       run: |
         set -euo pipefail
         REPO="${{ github.repository }}"
