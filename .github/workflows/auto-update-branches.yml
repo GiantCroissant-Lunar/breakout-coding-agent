@@ -73,7 +73,7 @@ jobs:
         def update_branch(pr_number):
             """Update PR branch with latest main"""
             try:
-                result = run_gh(f'pr view {pr_number} --json headRefName')
+                result = run_gh(f'pr view {pr_number} --repo ${{ github.repository }} --json headRefName')
                 if not result:
                     return False
                     
@@ -102,7 +102,7 @@ jobs:
         force_update = "${{ github.event.inputs.force_update }}" == "true"
         
         # Get all open PRs from copilot-swe-agent
-        prs_json = run_gh('pr list --author="app/copilot-swe-agent" --state=open --json number,headRefName,title')
+        prs_json = run_gh('pr list --repo ${{ github.repository }} --author="app/copilot-swe-agent" --state=open --json number,headRefName,title')
         
         if not prs_json:
             print("  No open GitHub Coding Agent PRs found")
@@ -127,7 +127,7 @@ jobs:
                     
                     # Add a comment explaining the update
                     comment = f"🔄 **Auto-updated branch** with latest main branch ({commits_behind} commits behind). This ensures the PR can be merged cleanly when ready. --- *Automated by Branch Update System*"
-                    run_gh(f'pr comment {pr_number} --body "{comment}"')
+                    run_gh(f'pr comment {pr_number} --repo ${{ github.repository }} --body "{comment}"')
             else:
                 print(f"  Branch is up to date")
         
@@ -140,16 +140,16 @@ jobs:
       run: |
         set -euo pipefail
         echo "Scanning for draft Copilot PRs to mark ready..."
-        PRS=$(gh pr list --author "app/copilot-swe-agent" --state open --json number,isDraft --jq '.[] | select(.isDraft==true) | .number' || true)
+        PRS=$(gh pr list --repo "${{ github.repository }}" --author "app/copilot-swe-agent" --state open --json number,isDraft --jq '.[] | select(.isDraft==true) | .number' || true)
         if [ -z "$PRS" ]; then
           echo "No draft Copilot PRs found"
           exit 0
         fi
         for n in $PRS; do
-          closings=$(gh pr view "$n" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+          closings=$(gh pr view "$n" --repo "${{ github.repository }}" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
           if [ "${closings:-0}" -gt 0 ]; then
             echo "Marking PR #$n ready (has closing reference)"
-            gh pr ready "$n" || true
+            gh pr ready "$n" --repo "${{ github.repository }}" || true
           else
             echo "PR #$n has no closing reference; leaving in draft"
           fi
