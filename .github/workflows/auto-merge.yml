@@ -13,7 +13,7 @@ jobs:
   auto-merge:
     runs-on: ubuntu-latest
     # Only run for Copilot-authored PRs from copilot/* branches
-    if: startsWith(github.head_ref, 'copilot/') && github.event.pull_request.user.login == 'app/copilot-swe-agent'
+    if: startsWith(github.head_ref, 'copilot/') && (github.event.pull_request.user.login == 'app/copilot-swe-agent' || github.event.pull_request.user.login == 'Copilot')
 
     steps:
     - name: Check out code
@@ -21,6 +21,15 @@ jobs:
       with:
         persist-credentials: true
         fetch-depth: 1
+
+    - name: Preflight gh environment
+      run: |
+        set -euo pipefail
+        echo "Repo: $GITHUB_REPOSITORY"
+        gh --version
+        gh auth status || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Auto-ready draft PRs
       run: |
@@ -144,9 +153,9 @@ jobs:
 
         # Auto-approve and merge the PR (fully automated)
         echo "🤖 Auto-approving and merging PR..."
-        gh pr review "$PR_NUM" --approve --body "$APPROVAL_MSG"
+        gh pr review "$PR_NUM" --repo "$REPO" --approve --body "$APPROVAL_MSG"
         sleep 5
-        gh pr merge "$PR_NUM" --squash --delete-branch --body "$MERGE_MSG"
+        gh pr merge "$PR_NUM" --repo "$REPO" --squash --delete-branch --body "$MERGE_MSG"
         echo "✅ PR merged successfully"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

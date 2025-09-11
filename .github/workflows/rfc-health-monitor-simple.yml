@@ -27,19 +27,30 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v4
         
+    - name: Preflight gh environment
+      run: |
+        set -euo pipefail
+        echo "Repo: $GITHUB_REPOSITORY"
+        gh --version
+        gh auth status || true
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        
     - name: Check RFC Health
       run: |
         echo "=== RFC Health Monitor ==="
         echo "Timestamp: $(date)"
         
         echo "Checking active PRs from GitHub Coding Agent..."
-        gh pr list --author="app/copilot-swe-agent" --json number,title,updatedAt,isDraft || echo "No PRs found"
+        echo "Authors: app/copilot-swe-agent and Copilot"
+        gh pr list --repo "${{ github.repository }}" --author="app/copilot-swe-agent" --json number,title,updatedAt,isDraft || true
+        gh pr list --repo "${{ github.repository }}" --author="Copilot" --json number,title,updatedAt,isDraft || echo "No PRs found"
         
         echo "Checking assigned Game-RFC issues..."
-        gh issue list --assignee="Copilot" --state=open --label=game-rfc --json number,title,createdAt || echo "No issues found"
+        gh issue list --repo "${{ github.repository }}" --assignee="Copilot" --state=open --label=game-rfc --json number,title,createdAt || echo "No issues found"
         
         echo "Checking recent workflow activity..."
-        gh run list --limit 5 --json name,status,conclusion,createdAt,headBranch | grep -i copilot || echo "No recent Copilot activity"
+        gh run list --repo "${{ github.repository }}" --limit 5 --json name,status,conclusion,createdAt,headBranch | grep -i copilot || echo "No recent Copilot activity"
         
         echo "Health check completed successfully!"
       env:
@@ -50,12 +61,13 @@ jobs:
       run: |
         echo "Testing intervention capabilities..."
         
-        # Find any open PR from Copilot
-        PR_NUM=$(gh pr list --author="app/copilot-swe-agent" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        # Find any open PR from Copilot (either identity)
+        PR_NUM=$( (gh pr list --repo "${{ github.repository }}" --author="app/copilot-swe-agent" --state open --json number --jq '.[0].number' 2>/dev/null ; \
+                   gh pr list --repo "${{ github.repository }}" --author="Copilot" --state open --json number --jq '.[0].number' 2>/dev/null) | head -1 )
         
         if [ -n "$PR_NUM" ]; then
           echo "Found test PR #$PR_NUM - posting test intervention comment"
-          gh pr comment "$PR_NUM" --body "Automated health check - monitoring system is operational. This comment validates intervention capabilities."
+          gh pr comment "$PR_NUM" --repo "${{ github.repository }}" --body "Automated health check - monitoring system is operational. This comment validates intervention capabilities."
           echo "Test intervention successful!"
         else
           echo "No PRs available for intervention testing"

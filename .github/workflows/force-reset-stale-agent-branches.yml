@@ -41,8 +41,11 @@ jobs:
         run: |
           echo "Searching for GitHub Coding Agent PRs..."
           
-          # Get all open PRs from copilot-swe-agent
-          agent_prs=$(gh pr list --author "app/copilot-swe-agent" --state open --json number,headRefName,createdAt --limit 10)
+          # Get all open PRs from Copilot identities and merge
+          prs_a=$(gh pr list --author "app/copilot-swe-agent" --state open --json number,headRefName,createdAt --limit 50 || echo '[]')
+          prs_b=$(gh pr list --author "Copilot" --state open --json number,headRefName,createdAt --limit 50 || echo '[]')
+          agent_prs=$(jq -s 'add | unique_by(.number)' <<<"$prs_a
+$prs_b")
           
           if [ "$agent_prs" = "[]" ]; then
             echo "No GitHub Coding Agent PRs found"
