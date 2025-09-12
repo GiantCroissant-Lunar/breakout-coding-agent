@@ -13,7 +13,7 @@ permissions:
 jobs:
   assign-next-micro-issue:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
 
     steps:
       - name: Checkout repository
@@ -23,7 +23,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.number || '' }}
+          PR_NUMBER: ${{ github.event.number }}
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "🔄 Manual trigger: Looking for recently merged PRs to process"
