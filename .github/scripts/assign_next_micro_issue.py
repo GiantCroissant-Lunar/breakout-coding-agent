@@ -183,20 +183,29 @@ def assign_issue(issue_number, repo):
         print("Invalid JSON from assignableUsers query")
         return False
 
-    # Perform replaceActorsForAssignable mutation (per official docs)
-    mutation = (
-        "mutation($assignableId:ID!,$actorIds:[ID!]!){"
-        " replaceActorsForAssignable(input:{assignableId:$assignableId,actorIds:$actorIds}){"
-        "  assignable{... on Issue{ number assignees(first:10){nodes{login}} }}"
-        " } }"
-    )
-    variables = json.dumps({
-        'assignableId': assignable_id,
-        'actorIds': [copilot_id],
-    })
+    # Perform replaceActorsForAssignable mutation (direct format - no variables)
+    mutation = f'''
+    mutation {{
+      replaceActorsForAssignable(input: {{
+        assignableId: "{assignable_id}"
+        actorIds: ["{copilot_id}"]
+      }}) {{
+        assignable {{
+          ... on Issue {{
+            number
+            assignees(first: 10) {{
+              nodes {{
+                login
+              }}
+            }}
+          }}
+        }}
+      }}
+    }}
+    '''
     try:
         result = subprocess.run(
-            ['gh','api','graphql','-f',f'query={mutation}','-f',f'variables={variables}'],
+            ['gh','api','graphql','-f',f'query={mutation}'],
             capture_output=True, text=True, check=True
         )
         data = json.loads(result.stdout)
