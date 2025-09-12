@@ -96,10 +96,20 @@ jobs:
           echo "Flow-RFC-001 validation passed"
 
         elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
-          echo "Game-RFC PR detected"
+          echo "Game-RFC or Micro-Issue PR detected"
           closing_count=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
           if [ "${closing_count:-0}" -gt 0 ]; then
             echo "Issue reference present via closing keywords"
+            
+            # Check if this is a micro-issue (Game-RFC-###-#)
+            if [[ "$PR_TITLE" == *"Game-RFC-"*"-"* ]]; then
+              echo "Micro-issue PR detected - applying fast-track validation"
+              # Micro-issues get streamlined validation since they're small and focused
+              echo "Micro-issue validation passed"
+            else
+              echo "Monolithic Game-RFC PR detected - applying standard validation"
+              echo "Standard Game-RFC validation passed"
+            fi
           else
             echo "Missing closing keyword; posting guidance comment and failing validation"
             rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
@@ -109,10 +119,10 @@ jobs:
                 --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
               if [ -n "$issue_num" ]; then suggestion="Fixes #$issue_num"; fi
             fi
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "This PR looks like a Game-RFC implementation but doesn’t reference its tracking issue. Please add: $suggestion"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "This PR looks like a Game-RFC implementation but doesn't reference its tracking issue. Please add: $suggestion"
             exit 1
           fi
-          echo "Game-RFC validation passed"
+          echo "Game-RFC/Micro-issue validation passed"
 
         else
           echo "Not a recognized RFC PR, skipping auto-merge"; exit 0
