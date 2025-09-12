@@ -13,7 +13,7 @@ permissions:
 jobs:
   assign-next-micro-issue:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request && github.event.pull_request.merged == true) }}
 
     steps:
       - name: Checkout repository
