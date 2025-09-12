@@ -114,4 +114,14 @@ public static class BrickSystem
             ClearBrick(brick);
         }
     }
+    
+    /// <summary>
+    /// Checks if the win condition is met (all bricks destroyed)
+    /// </summary>
+    /// <param name="layout">Brick layout to check</param>
+    /// <returns>True if all bricks are destroyed</returns>
+    public static bool CheckWinCondition(BrickLayout layout)
+    {
+        return layout.GetActiveBricks().Count == 0;
+    }
 }
