@@ -17,124 +17,124 @@ jobs:
     if: startsWith(github.head_ref, 'copilot/') && (github.event.pull_request.user.login == 'app/copilot-swe-agent' || github.event.pull_request.user.login == 'Copilot')
 
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      with:
-        persist-credentials: true
-        fetch-depth: 1
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
 
-    - name: Preflight gh environment
-      run: |
-        set -euo pipefail
-        echo "Repo: $GITHUB_REPOSITORY"
-        gh --version
-        gh auth status || true
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Preflight gh environment
+        run: |
+          set -euo pipefail
+          echo "Repo: $GITHUB_REPOSITORY"
+          gh --version
+          gh auth status || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Auto-ready draft PRs
-      run: |
-        set -euo pipefail
-        REPO="${{ github.repository }}"
-        PR_NUM="${{ github.event.number }}"
-        # Trust event payload first, then verify live status
-        if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
-          echo "Event indicates draft PR; marking ready"
-          gh pr ready "$PR_NUM" --repo "$REPO" || true
-          sleep 3
-        fi
-        # Double-check current draft status via API and mark ready if still draft
-        IS_DRAFT=$(gh pr view "$PR_NUM" --repo "$REPO" --json isDraft --jq .isDraft || echo false)
-        if [[ "$IS_DRAFT" == "true" ]]; then
-          echo "Live status shows draft; marking ready"
-          gh pr ready "$PR_NUM" --repo "$REPO" || true
-          sleep 3
-        fi
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Auto-ready draft PRs
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          PR_NUM="${{ github.event.number }}"
+          # Trust event payload first, then verify live status
+          if [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then
+            echo "Event indicates draft PR; marking ready"
+            gh pr ready "$PR_NUM" --repo "$REPO" || true
+            sleep 3
+          fi
+          # Double-check current draft status via API and mark ready if still draft
+          IS_DRAFT=$(gh pr view "$PR_NUM" --repo "$REPO" --json isDraft --jq .isDraft || echo false)
+          if [[ "$IS_DRAFT" == "true" ]]; then
+            echo "Live status shows draft; marking ready"
+            gh pr ready "$PR_NUM" --repo "$REPO" || true
+            sleep 3
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Pre-validate ensure closing reference for Game-RFC PRs
-      run: |
-        set -euo pipefail
-        REPO="${{ github.repository }}"
-        PR_NUM="${{ github.event.number }}"
-        PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq .title)
-        if [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
-          closing=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
-          if [ "${closing:-0}" -eq 0 ]; then
-            rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
-            issue_num=""
-            if [ -n "$rfc_num" ]; then
-              issue_num=$(gh issue list --repo "$REPO" --state open --label game-rfc --json number,title \\
-                --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
-            fi
-            if [ -n "$issue_num" ]; then
-              body=$(gh pr view "$PR_NUM" --repo "$REPO" --json body --jq .body || echo "")
-              printf "%s\n\nFixes #%s\n" "$body" "$issue_num" > /tmp/pr_body.txt
-              gh pr edit "$PR_NUM" --repo "$REPO" --body-file /tmp/pr_body.txt || true
+      - name: Pre-validate ensure closing reference for Game-RFC PRs
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          PR_NUM="${{ github.event.number }}"
+          PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq .title)
+          if [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
+            closing=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+            if [ "${closing:-0}" -eq 0 ]; then
+              rfc_num=$(printf "%s" "$PR_TITLE" | sed -nE 's/.*Game-RFC-([0-9]+).*/\1/p' | head -1)
+              issue_num=""
+              if [ -n "$rfc_num" ]; then
+                issue_num=$(gh issue list --repo "$REPO" --state open --label game-rfc --json number,title \
+                  --jq ".[] | select(.title | test(\"Game-RFC-$rfc_num\\b\")) | .number" | head -1 || true)
+              fi
+              if [ -n "$issue_num" ]; then
+                body=$(gh pr view "$PR_NUM" --repo "$REPO" --json body --jq .body || echo "")
+                printf "%s\n\nFixes #%s\n" "$body" "$issue_num" > /tmp/pr_body.txt
+                gh pr edit "$PR_NUM" --repo "$REPO" --body-file /tmp/pr_body.txt || true
+              fi
             fi
           fi
-        fi
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Validate PR format
-      run: |
-        echo "🔍 Validating PR #${{ github.event.number }} using Python script..."
-        
-        # Make Python script executable
-        chmod +x .github/scripts/validate_pr.py
-        
-        # Run Python validation script
-        python .github/scripts/validate_pr.py
-      env:
-        PR_NUMBER: ${{ github.event.number }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate PR format
+        run: |
+          echo "?? Validating PR #${{ github.event.number }} using Python script..."
+          
+          # Make Python script executable
+          chmod +x .github/scripts/validate_pr.py
+          
+          # Run Python validation script
+          python .github/scripts/validate_pr.py
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Auto-approve and merge
-      run: |
-        set -euo pipefail
-        REPO="${{ github.repository }}"
-        PR_NUM="${{ github.event.number }}"
-        PR_TITLE="${{ github.event.pull_request.title }}"
+      - name: Auto-approve and merge
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          PR_NUM="${{ github.event.number }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
 
-        if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
-          echo "Auto-approving Flow-RFC-001 PR..."
-          APPROVAL_MSG="✅ Flow-RFC-001 auto-approved: Basic PR merge cycle validation"
-          MERGE_MSG="✅ Auto-merged Flow-RFC-001 test PR"
+          if [[ "$PR_TITLE" == *"Flow-RFC-001"* ]]; then
+            echo "Auto-approving Flow-RFC-001 PR..."
+            APPROVAL_MSG="? Flow-RFC-001 auto-approved: Basic PR merge cycle validation"
+            MERGE_MSG="? Auto-merged Flow-RFC-001 test PR"
 
-        elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
-          RFC_NUM=$(echo "$PR_TITLE" | grep -o 'Game-RFC-[0-9]\+' | head -1)
-          echo "Auto-approving $RFC_NUM PR..."
-          APPROVAL_MSG="✅ $RFC_NUM auto-approved: Implementation validated"
-          MERGE_MSG="✅ Auto-merged $RFC_NUM implementation"
+          elif [[ "$PR_TITLE" == *"Game-RFC-"* ]]; then
+            RFC_NUM=$(echo "$PR_TITLE" | grep -o 'Game-RFC-[0-9]\+' | head -1)
+            echo "Auto-approving $RFC_NUM PR..."
+            APPROVAL_MSG="? $RFC_NUM auto-approved: Implementation validated"
+            MERGE_MSG="? Auto-merged $RFC_NUM implementation"
 
-        else
-          CLOSING_COUNT=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
-          if [ "${CLOSING_COUNT:-0}" -gt 0 ]; then
-            echo "Auto-approving Copilot PR with closing reference"
-            APPROVAL_MSG="✅ Auto-approved: Copilot PR with closing reference"
-            MERGE_MSG="✅ Auto-merged Copilot PR with closing reference"
           else
-            echo "❌ Unexpected PR type and no closing reference; stopping"
-            exit 1
+            CLOSING_COUNT=$(gh pr view "$PR_NUM" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length' || echo 0)
+            if [ "${CLOSING_COUNT:-0}" -gt 0 ]; then
+              echo "Auto-approving Copilot PR with closing reference"
+              APPROVAL_MSG="? Auto-approved: Copilot PR with closing reference"
+              MERGE_MSG="? Auto-merged Copilot PR with closing reference"
+            else
+              echo "? Unexpected PR type and no closing reference; stopping"
+              exit 1
+            fi
           fi
-        fi
 
-        # Auto-approve and merge the PR (fully automated)
-        echo "🤖 Auto-approving and merging PR..."
-        gh pr review "$PR_NUM" --repo "$REPO" --approve --body "$APPROVAL_MSG"
-        sleep 5
-        gh pr merge "$PR_NUM" --repo "$REPO" --squash --delete-branch --body "$MERGE_MSG"
-        echo "✅ PR merged successfully"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Auto-approve and merge the PR (fully automated)
+          echo "?? Auto-approving and merging PR..."
+          gh pr review "$PR_NUM" --repo "$REPO" --approve --body "$APPROVAL_MSG"
+          sleep 5
+          gh pr merge "$PR_NUM" --repo "$REPO" --squash --delete-branch --body "$MERGE_MSG"
+          echo "? PR merged successfully"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Update Flow-RFC status
-      if: success()
-      run: |
-        echo "Flow-RFC-001 completed successfully!"
-        echo "GitHub Coding Agent can now reliably merge PRs."
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Flow-RFC status
+        if: success()
+        run: |
+          echo "Flow-RFC-001 completed successfully!"
+          echo "GitHub Coding Agent can now reliably merge PRs."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
