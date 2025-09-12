@@ -97,3 +97,74 @@ public static class PaddleConstants
     /// </summary>
     public const int MovementSpeed = 1;
 }
+
+/// <summary>
+/// Brick-related constants
+/// </summary>
+public static class BrickConstants
+{
+    /// <summary>
+    /// Default brick width
+    /// </summary>
+    public const int DefaultWidth = 6;
+    
+    /// <summary>
+    /// Default brick height
+    /// </summary>
+    public const int DefaultHeight = 1;
+    
+    /// <summary>
+    /// Default number of brick rows
+    /// </summary>
+    public const int DefaultRows = 6;
+    
+    /// <summary>
+    /// Default number of brick columns
+    /// </summary>
+    public const int DefaultColumns = 10;
+    
+    /// <summary>
+    /// Horizontal spacing between bricks
+    /// </summary>
+    public const int SpacingX = 1;
+    
+    /// <summary>
+    /// Vertical spacing between bricks
+    /// </summary>
+    public const int SpacingY = 1;
+    
+    /// <summary>
+    /// Default brick character
+    /// </summary>
+    public const char DefaultCharacter = '█';
+    
+    /// <summary>
+    /// Standard brick point value
+    /// </summary>
+    public const int StandardPoints = 10;
+    
+    /// <summary>
+    /// Strong brick point value
+    /// </summary>
+    public const int StrongPoints = 20;
+    
+    /// <summary>
+    /// Bonus brick point value
+    /// </summary>
+    public const int BonusPoints = 50;
+    
+    /// <summary>
+    /// Standard brick color
+    /// </summary>
+    public static readonly ConsoleColor StandardColor = ConsoleColor.Cyan;
+    
+    /// <summary>
+    /// Strong brick color
+    /// </summary>
+    public static readonly ConsoleColor StrongColor = ConsoleColor.Yellow;
+    
+    /// <summary>
+    /// Bonus brick color
+    /// </summary>
+    public static readonly ConsoleColor BonusColor = ConsoleColor.Red;
+}
