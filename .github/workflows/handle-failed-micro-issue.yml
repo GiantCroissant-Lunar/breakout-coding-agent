@@ -25,7 +25,7 @@ jobs:
   handle-failure:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
     steps:
       - name: Handle failed micro-issue
         run: |
@@ -59,10 +59,9 @@ jobs:
             restart_same_issue)
               echo "[info] Restarting same issue #$FAILED_ISSUE"
 
-              # Unassign and reassign to trigger fresh start
-              gh issue edit "$FAILED_ISSUE" --repo "$REPO" --remove-assignee Copilot || true
-              sleep 2
-              gh issue edit "$FAILED_ISSUE" --repo "$REPO" --add-assignee Copilot
+              # Unassign and reassign to trigger fresh start using the proper auto-assign workflow
+              echo "[info] Triggering auto-assign workflow to properly reassign Copilot..."
+              gh workflow run auto-assign-next-micro-issue.yml --repo "$REPO"
 
               # Add restart comment
               gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "**Micro-Issue Restarted**
@@ -97,13 +96,14 @@ jobs:
                   --jq ".[] | select(.title | test(\"Game-RFC-$RFC_NUM-$NEXT_MICRO:\")) | .number" | head -1 || true)
 
                 if [ -n "$NEXT_ISSUE" ]; then
-                  gh issue edit "$NEXT_ISSUE" --repo "$REPO" --add-assignee Copilot
+                  echo "[info] Using auto-assign workflow to assign next micro-issue #$NEXT_ISSUE"
+                  gh workflow run auto-assign-next-micro-issue.yml --repo "$REPO"
                   gh issue comment "$NEXT_ISSUE" --repo "$REPO" --body "**Fast-tracked from skipped issue**
 
           Previous micro-issue #$FAILED_ISSUE was skipped due to implementation issues.
 
           Note: Account for any missing functionality."
-                  echo "[info] Assigned next micro-issue #$NEXT_ISSUE"
+                  echo "[info] Triggered assignment for next micro-issue #$NEXT_ISSUE"
                 fi
               fi
               ;;
@@ -129,8 +129,11 @@ jobs:
           Simplified scope: Focus on core functionality; skip advanced features.
 
           Instructions: Implement a minimal working version first." \
-                --assignee Copilot \
                 --label game-rfc)
+              
+              # Use auto-assign workflow to properly assign Copilot to the new issue
+              echo "[info] Using auto-assign workflow to assign Copilot to new simplified issue..."
+              gh workflow run auto-assign-next-micro-issue.yml --repo "$REPO"
 
               echo "[info] Created simplified issue: $NEW_ISSUE"
               ;;
