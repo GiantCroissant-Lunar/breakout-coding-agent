@@ -36,102 +36,18 @@ jobs:
       with:
         python-version: '3.11'
         
-    - name: Get Repository and Bot IDs
-      id: ids
-      run: |
-        # Get repository ID
-        REPO_ID=$(gh api graphql -f query='query { repository(owner: "GiantCroissant-Lunar", name: "breakout-coding-agent") { id } }' --jq '.data.repository.id')
-        echo "REPO_ID=$REPO_ID" >> $GITHUB_OUTPUT
-        
-        # Get Copilot Bot ID dynamically
-        COPILOT_BOT_ID=$(gh api graphql -f query='
-        query {
-          repository(owner: "GiantCroissant-Lunar", name: "breakout-coding-agent") {
-            suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
-              nodes {
-                login
-                __typename
-                ... on Bot {
-                  id
-                }
-              }
-            }
-          }
-        }' --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent" and .__typename == "Bot") | .id')
-        echo "COPILOT_BOT_ID=$COPILOT_BOT_ID" >> $GITHUB_OUTPUT
-      env:
-        GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        
     - name: Create Micro-Issues
       run: |
-        echo "🔧 Creating micro-issues for ${{ github.event.inputs.game_rfc }}..."
+        echo "🔧 Creating micro-issues using Python script..."
         
-        # Define micro-issue templates based on Game-RFC
-        case "${{ github.event.inputs.game_rfc }}" in
-          "Game-RFC-004")
-            echo "Creating Brick System micro-issues..."
-            
-            # Micro-issue 1: Brick Model
-            gh api graphql -f query='
-            mutation {
-              createIssue(input: {
-                repositoryId: "${{ steps.ids.outputs.REPO_ID }}", 
-                title: "Game-RFC-004-1: Create Brick Model Class", 
-                body: "@copilot Please implement the basic Brick model class for Game-RFC-004.\n\n## Scope\nCreate a single `Brick` class with:\n- Position (x, y)\n- Color/Type property\n- IsDestroyed flag\n- Basic constructor\n\n## Files Expected\n- `dotnet/game/Breakout.Game/Models/Brick.cs`\n\n## Definition of Done\n- [ ] Brick class compiles without warnings\n- [ ] Basic properties implemented\n- [ ] Constructor accepts position and type parameters\n\n**Parent RFC**: Game-RFC-004: Brick System\n**Dependencies**: None", 
-                assigneeIds: ["${{ steps.ids.outputs.COPILOT_BOT_ID }}"],
-                labelIds: []
-              }) {
-                issue {
-                  number
-                  assignees(first: 10) {
-                    nodes {
-                      login
-                    }
-                  }
-                }
-              }
-            }'
-            
-            # Micro-issue 2: Collision Detection
-            gh api graphql -f query='
-            mutation {
-              createIssue(input: {
-                repositoryId: "${{ steps.ids.outputs.REPO_ID }}", 
-                title: "Game-RFC-004-2: Implement Brick Collision Detection", 
-                body: "@copilot Please implement collision detection for bricks.\n\n## Scope\nAdd collision detection methods to the Brick class:\n- CollidesWith(Ball ball) method\n- Bounding box calculation\n- Collision response logic\n\n## Files Expected\n- Update `dotnet/game/Breakout.Game/Models/Brick.cs`\n- Possibly new `dotnet/game/Breakout.Game/Physics/CollisionDetection.cs`\n\n## Definition of Done\n- [ ] Collision detection methods implemented\n- [ ] Works with existing Ball class\n- [ ] No compilation errors\n\n**Parent RFC**: Game-RFC-004: Brick System\n**Dependencies**: Game-RFC-004-1", 
-                assigneeIds: [],
-                labelIds: []
-              }) {
-                issue {
-                  number
-                }
-              }
-            }'
-            
-            # Micro-issue 3: Rendering System
-            gh api graphql -f query='
-            mutation {
-              createIssue(input: {
-                repositoryId: "${{ steps.ids.outputs.REPO_ID }}", 
-                title: "Game-RFC-004-3: Add Brick Rendering System", 
-                body: "@copilot Please implement brick rendering functionality.\n\n## Scope\nAdd rendering capabilities for bricks:\n- BrickRenderer component\n- Integration with existing rendering pipeline\n- Color/texture support\n\n## Files Expected\n- `dotnet/game/Breakout.Game/Rendering/BrickRenderer.cs`\n- Updates to main game loop\n\n## Definition of Done\n- [ ] Bricks visible on screen\n- [ ] Different colors render correctly\n- [ ] Performance is acceptable\n\n**Parent RFC**: Game-RFC-004: Brick System\n**Dependencies**: Game-RFC-004-1", 
-                assigneeIds: [],
-                labelIds: []
-              }) {
-                issue {
-                  number
-                }
-              }
-            }'
-            ;;
-          *)
-            echo "Micro-issue templates for ${{ github.event.inputs.game_rfc }} not yet defined"
-            echo "Please add templates to this workflow for automatic decomposition"
-            exit 1
-            ;;
-        esac
+        # Make Python script executable
+        chmod +x .github/scripts/create_micro_issues.py
+        
+        # Run Python micro-issue creation script
+        python .github/scripts/create_micro_issues.py
       env:
         GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        GAME_RFC: ${{ github.event.inputs.game_rfc }}
         
     - name: Summary
       run: |
