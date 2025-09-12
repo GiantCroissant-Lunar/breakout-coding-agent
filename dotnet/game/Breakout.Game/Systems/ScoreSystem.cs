@@ -21,6 +21,11 @@ public class ScoreSystem
     public int BricksDestroyed { get; private set; }
     
     /// <summary>
+    /// Number of lives remaining for the player
+    /// </summary>
+    public int Lives { get; private set; }
+    
+    /// <summary>
     /// Initializes a new score system
     /// </summary>
     public ScoreSystem()
@@ -28,6 +33,7 @@ public class ScoreSystem
         CurrentScore = 0;
         HighScore = 0;
         BricksDestroyed = 0;
+        Lives = 3; // Start with 3 lives as specified in RFC
     }
     
     /// <summary>
@@ -52,6 +58,7 @@ public class ScoreSystem
     {
         CurrentScore = 0;
         BricksDestroyed = 0;
+        Lives = 3; // Reset lives to 3 when starting new game
     }
     
     /// <summary>
@@ -79,5 +86,28 @@ public class ScoreSystem
     public string GetBricksDestroyedDisplay()
     {
         return $"Bricks: {BricksDestroyed}";
+    }
+    
+    /// <summary>
+    /// Decrements the number of lives remaining
+    /// </summary>
+    /// <returns>True if lives remain after decrement, false if no lives left</returns>
+    public bool DecrementLife()
+    {
+        if (Lives > 0)
+        {
+            Lives--;
+        }
+        return Lives > 0;
+    }
+    
+    /// <summary>
+    /// Gets a formatted string representation of lives remaining
+    /// </summary>
+    /// <returns>Formatted lives string</returns>
+    public string GetLivesDisplay()
+    {
+        // Using hearts for visual appeal as suggested in RFC
+        return $"Lives: {new string('♥', Lives)}";
     }
 }

@@ -210,7 +210,17 @@ public class Game
                 // Check if ball was lost
                 if (!Ball.IsActive)
                 {
-                    State = GameState.GameOver;
+                    // Decrement life and check if game should continue
+                    if (ScoreSystem.DecrementLife())
+                    {
+                        // Lives remaining - reset ball to continue playing
+                        BallSystem.InitializeBall(Ball);
+                    }
+                    else
+                    {
+                        // No lives left - game over
+                        State = GameState.GameOver;
+                    }
                 }
                 
                 // Clear previous positions (ball)
