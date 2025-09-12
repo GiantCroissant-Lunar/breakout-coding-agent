@@ -1,5 +1,6 @@
 using Breakout.Game.Models;
 using Breakout.Game.Utilities;
+using System.Linq;
 
 namespace Breakout.Game.Systems;
 
@@ -210,5 +211,30 @@ public static class RenderSystem
         
         Console.SetCursorPosition(paddle.X, paddle.Y);
         Console.Write(new string(' ', paddle.Width));
+    }
+    
+    /// <summary>
+    /// Draws all non-destroyed bricks efficiently
+    /// </summary>
+    /// <param name="bricks">List of bricks to render</param>
+    public static void DrawBricks(List<Brick> bricks)
+    {
+        foreach (var brick in bricks.Where(b => !b.IsDestroyed))
+        {
+            Console.SetCursorPosition(brick.X, brick.Y);
+            Console.ForegroundColor = brick.Color;
+            Console.Write(new string(brick.Character, brick.Width));
+        }
+        Console.ResetColor();
+    }
+    
+    /// <summary>
+    /// Clears a destroyed brick from the screen
+    /// </summary>
+    /// <param name="brick">Brick to clear</param>
+    public static void ClearBrick(Brick brick)
+    {
+        Console.SetCursorPosition(brick.X, brick.Y);
+        Console.Write(new string(' ', brick.Width));
     }
 }
