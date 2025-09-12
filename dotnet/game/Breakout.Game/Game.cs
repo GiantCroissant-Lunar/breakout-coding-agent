@@ -25,6 +25,16 @@ public class Game
     public Paddle Paddle { get; set; }
     
     /// <summary>
+    /// Game brick layout
+    /// </summary>
+    public BrickLayout BrickLayout { get; set; }
+    
+    /// <summary>
+    /// Game score system
+    /// </summary>
+    public ScoreSystem ScoreSystem { get; set; }
+    
+    /// <summary>
     /// Whether the game is running
     /// </summary>
     public bool IsRunning { get; private set; }
@@ -45,6 +55,8 @@ public class Game
         // Initialize game objects
         Ball = new Ball();
         Paddle = new Paddle();
+        BrickLayout = new BrickLayout();
+        ScoreSystem = new ScoreSystem();
         InitializeGameObjects();
     }
     
@@ -67,6 +79,12 @@ public class Game
         
         // Initialize paddle
         PaddleSystem.InitializePaddle(Paddle);
+        
+        // Initialize brick layout
+        BrickLayout.GenerateStandardLayout();
+        
+        // Reset score system
+        ScoreSystem.Reset();
     }
     
     /// <summary>
@@ -176,6 +194,19 @@ public class Game
                 // Update ball physics
                 BallSystem.Update(Ball, Paddle);
                 
+                // Check for brick collisions
+                var hitBrick = BrickSystem.CheckBrickCollisions(Ball, BrickLayout.Bricks);
+                if (hitBrick != null)
+                {
+                    BrickSystem.HandleBrickCollision(Ball, hitBrick, ScoreSystem);
+                }
+                
+                // Check win condition (all bricks destroyed)
+                if (BrickLayout.AllBricksDestroyed())
+                {
+                    State = GameState.GameOver; // Will be changed to Win state in future RFC
+                }
+                
                 // Check if ball was lost
                 if (!Ball.IsActive)
                 {
@@ -213,8 +244,10 @@ public class Game
         // Render game objects during gameplay
         if (State == GameState.Playing)
         {
+            BrickSystem.DrawBricks(BrickLayout.Bricks);
             RenderSystem.DrawPaddle(Paddle);
             RenderSystem.DrawBall(Ball);
+            RenderSystem.DrawScore(ScoreSystem);
         }
     }
     

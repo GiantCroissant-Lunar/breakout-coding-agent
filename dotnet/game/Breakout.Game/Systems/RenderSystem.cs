@@ -92,6 +92,26 @@ public static class RenderSystem
     }
     
     /// <summary>
+    /// Draws the score information on the screen
+    /// </summary>
+    /// <param name="scoreSystem">Score system to display</param>
+    public static void DrawScore(ScoreSystem scoreSystem)
+    {
+        if (scoreSystem == null) return;
+        
+        // Draw score at top left
+        Console.SetCursorPosition(2, 1);
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.Write(scoreSystem.GetScoreDisplay());
+        
+        // Draw bricks destroyed next to score
+        Console.SetCursorPosition(15, 1);
+        Console.Write(scoreSystem.GetBricksDestroyedDisplay());
+        
+        Console.ResetColor();
+    }
+    
+    /// <summary>
     /// Renders the paused game state
     /// </summary>
     private static void RenderPaused()
