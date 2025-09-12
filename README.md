@@ -2,6 +2,12 @@
 
 A classic Breakout game built with .NET, designed to test and validate GitHub Copilot Coding Agent workflows.
 
+[![Gitleaks](https://github.com/GiantCroissant-Lunar/breakout-coding-agent/actions/workflows/gitleaks.yml/badge.svg?branch=main)](https://github.com/GiantCroissant-Lunar/breakout-coding-agent/actions/workflows/gitleaks.yml)
+![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
+![Last Commit](https://img.shields.io/github/last-commit/GiantCroissant-Lunar/breakout-coding-agent)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+
 ## 🤖 Project Purpose
 
 This project implements a **two-track RFC approach**:
