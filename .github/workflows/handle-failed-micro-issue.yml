@@ -12,10 +12,10 @@ on:
         required: true
         type: choice
         options:
-          - 'restart_same_issue'
-          - 'skip_to_next_issue'
-          - 'recreate_issue'
-        default: 'restart_same_issue'
+          - restart_same_issue
+          - skip_to_next_issue
+          - recreate_issue
+        default: restart_same_issue
 
 permissions:
   issues: write
@@ -24,6 +24,8 @@ permissions:
 jobs:
   handle-failure:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Handle failed micro-issue
         run: |
@@ -31,114 +33,112 @@ jobs:
           REPO="${{ github.repository }}"
           FAILED_ISSUE="${{ github.event.inputs.failed_issue_number }}"
           STRATEGY="${{ github.event.inputs.restart_strategy }}"
-          
-          echo "🚨 Handling failed micro-issue #$FAILED_ISSUE with strategy: $STRATEGY"
-          
+
+          echo "[info] Handling failed micro-issue #$FAILED_ISSUE (strategy=$STRATEGY)"
+
           # Get issue details
           ISSUE_DATA=$(gh issue view "$FAILED_ISSUE" --repo "$REPO" --json title,assignees,state)
           ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r .title)
           ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r .state)
-          
-          echo "📋 Issue: $ISSUE_TITLE"
-          echo "🔍 Current state: $ISSUE_STATE"
-          
+
+          echo "[info] Issue: $ISSUE_TITLE"
+          echo "[info] State: $ISSUE_STATE"
+
           # Close any bad PRs associated with this issue
-          echo "🧹 Cleaning up failed PRs..."
-          gh pr list --repo "$REPO" --state open --json number,title,body | \
-            jq -r ".[] | select(.title | contains(\"$FAILED_ISSUE\") or .body | contains(\"#$FAILED_ISSUE\")) | .number" | \
-            while read pr_num; do
-              if [ -n "$pr_num" ]; then
-                echo "❌ Closing failed PR #$pr_num"
-                gh pr close "$pr_num" --repo "$REPO" --comment "❌ Closing failed PR - restarting micro-issue implementation"
-              fi
-            done
-          
+          echo "[info] Cleaning up failed PRs..."
+          gh pr list --repo "$REPO" --state open --json number,title,body \
+            | jq -r ".[] | select((.title|tostring|contains(\"$FAILED_ISSUE\")) or (.body|tostring|contains(\"#$FAILED_ISSUE\"))) | .number" \
+            | while read pr_num; do
+                if [ -n "$pr_num" ]; then
+                  echo "[info] Closing PR #$pr_num"
+                  gh pr close "$pr_num" --repo "$REPO" --comment "Closing failed PR to restart micro-issue"
+                fi
+              done
+
           case "$STRATEGY" in
-            "restart_same_issue")
-              echo "🔄 Restarting same issue #$FAILED_ISSUE"
-              
+            restart_same_issue)
+              echo "[info] Restarting same issue #$FAILED_ISSUE"
+
               # Unassign and reassign to trigger fresh start
               gh issue edit "$FAILED_ISSUE" --repo "$REPO" --remove-assignee Copilot || true
               sleep 2
               gh issue edit "$FAILED_ISSUE" --repo "$REPO" --add-assignee Copilot
-              
+
               # Add restart comment
-              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "🔄 **Micro-Issue Restarted**
+              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "**Micro-Issue Restarted**
 
           Previous implementation attempt failed. Starting fresh implementation.
 
-          **Strategy**: Clean slate approach - previous PR has been closed, Copilot reassigned for new attempt.
+          Strategy: Clean slate. Previous PR closed, Copilot reassigned.
 
-          **Instructions**: Please implement this micro-issue from scratch, ignoring any previous attempts."
-              
-              echo "✅ Issue #$FAILED_ISSUE restarted"
+          Instructions: Please re-implement this micro-issue from scratch."
+
+              echo "[info] Issue #$FAILED_ISSUE restarted"
               ;;
-              
-            "skip_to_next_issue")
-              echo "⏭️ Skipping to next micro-issue"
-              
+
+            skip_to_next_issue)
+              echo "[info] Skipping to next micro-issue"
+
               # Close current issue as won't fix
               gh issue close "$FAILED_ISSUE" --repo "$REPO" --reason "not_planned"
-              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "⏭️ **Skipped Issue**
+              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "**Skipped Issue**
 
-          This micro-issue implementation was problematic. Skipping to next micro-issue in sequence to maintain momentum.
+          This micro-issue had blocking problems. Skipping to next in sequence.
 
-          **Note**: May need manual implementation later or integration with subsequent micro-issues."
-              
+          Note: You may need to cover missing functionality later."
+
               # Extract next issue number and assign
               if [[ "$ISSUE_TITLE" =~ Game-RFC-([0-9]+)-([0-9]+) ]]; then
                 RFC_NUM="${BASH_REMATCH[1]}"
                 CURRENT_MICRO="${BASH_REMATCH[2]}"
                 NEXT_MICRO=$((CURRENT_MICRO + 1))
-                
+
                 NEXT_ISSUE=$(gh issue list --repo "$REPO" --state open --json number,title \
                   --jq ".[] | select(.title | test(\"Game-RFC-$RFC_NUM-$NEXT_MICRO:\")) | .number" | head -1 || true)
-                
+
                 if [ -n "$NEXT_ISSUE" ]; then
                   gh issue edit "$NEXT_ISSUE" --repo "$REPO" --add-assignee Copilot
-                  gh issue comment "$NEXT_ISSUE" --repo "$REPO" --body "⏭️ **Fast-tracked from skipped issue**
+                  gh issue comment "$NEXT_ISSUE" --repo "$REPO" --body "**Fast-tracked from skipped issue**
 
           Previous micro-issue #$FAILED_ISSUE was skipped due to implementation issues.
 
-          **Note**: You may need to account for missing functionality from the skipped micro-issue."
-                  echo "✅ Next micro-issue #$NEXT_ISSUE assigned"
+          Note: Account for any missing functionality."
+                  echo "[info] Assigned next micro-issue #$NEXT_ISSUE"
                 fi
               fi
               ;;
-              
-            "recreate_issue")
-              echo "🆕 Recreating issue with simplified scope"
-              
+
+            recreate_issue)
+              echo "[info] Recreating issue with simplified scope"
+
               # Close original issue
               gh issue close "$FAILED_ISSUE" --repo "$REPO" --reason "not_planned"
-              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "🆕 **Issue Recreated**
+              gh issue comment "$FAILED_ISSUE" --repo "$REPO" --body "**Issue Recreated**
 
-          This issue was too complex. A simplified version has been created to maintain momentum."
-              
+          Original issue too complex. Creating simplified version to maintain momentum."
+
               # Create simplified version
               SIMPLIFIED_TITLE=$(echo "$ISSUE_TITLE" | sed 's/Game-RFC-/Game-RFC-SIMPLE-/')
-              
+
               NEW_ISSUE=$(gh issue create --repo "$REPO" \
                 --title "$SIMPLIFIED_TITLE" \
-                --body "🆕 **Simplified version of #$FAILED_ISSUE**
+                --body "**Simplified version of #$FAILED_ISSUE**
 
-          Original issue: $ISSUE_TITLE
+          Original: $ISSUE_TITLE
 
-          **Simplified scope**: Focus on core functionality only, skip advanced features.
+          Simplified scope: Focus on core functionality; skip advanced features.
 
-          **Instructions**: Implement minimal working version that satisfies basic requirements." \
+          Instructions: Implement a minimal working version first." \
                 --assignee Copilot \
                 --label game-rfc)
-              
-              echo "✅ Created simplified issue: $NEW_ISSUE"
+
+              echo "[info] Created simplified issue: $NEW_ISSUE"
               ;;
           esac
-        
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
-          echo "🎯 Failed micro-issue handling completed!"
+          echo "[info] Failed micro-issue handling completed!"
           echo "Strategy: ${{ github.event.inputs.restart_strategy }}"
           echo "Issue: #${{ github.event.inputs.failed_issue_number }}"
+
