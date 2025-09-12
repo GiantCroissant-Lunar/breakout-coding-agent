@@ -39,7 +39,7 @@ jobs:
         # Run Python micro-issue creation script
         python .github/scripts/create_micro_issues.py
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         GAME_RFC: ${{ github.event.inputs.game_rfc }}
         
     - name: Summary

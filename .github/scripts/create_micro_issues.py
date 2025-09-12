@@ -142,11 +142,15 @@ class MicroIssueCreator:
         
         if not self.repo_id:
             raise RuntimeError(f"Could not get repository ID for {repo_owner}/{repo_name}")
+        
         if not self.copilot_bot_id:
-            raise RuntimeError(f"Could not get Copilot Bot ID for {repo_owner}/{repo_name}")
-            
+            logger.warning(f"Could not get Copilot Bot ID for {repo_owner}/{repo_name} - will create issues without auto-assignment")
+        
         logger.info(f"Repository ID: {self.repo_id}")
-        logger.info(f"Copilot Bot ID: {self.copilot_bot_id}")
+        if self.copilot_bot_id:
+            logger.info(f"Copilot Bot ID: {self.copilot_bot_id}")
+        else:
+            logger.info("No Copilot Bot ID - issues will be created unassigned")
     
     def create_micro_issues(self, game_rfc: str) -> List[str]:
         """Create micro-issues for specified Game-RFC using dynamic parsing"""
@@ -182,8 +186,8 @@ class MicroIssueCreator:
         created_issues = []
         
         for i, template in enumerate(templates):
-            # First issue gets assigned immediately, others depend on completion
-            assignee_ids = [self.copilot_bot_id] if i == 0 else []
+            # First issue gets assigned immediately if Bot ID is available, others depend on completion
+            assignee_ids = [self.copilot_bot_id] if i == 0 and self.copilot_bot_id else []
             
             issue_number = self.api.create_issue(
                 self.repo_id,
