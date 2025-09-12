@@ -172,10 +172,28 @@ def assign_issue(issue_number, repo):
         
         if not copilot_id:
             print(f"Could not locate Copilot in assignableUsers. Available users: {[u.get('login') for u in assignable_users]}")
-            print("Trying known Copilot ID from existing assignments...")
-            # Use known Copilot ID from issues #60-62: BOT_kgDOC9w8XQ
-            copilot_id = "BOT_kgDOC9w8XQ"
-            print(f"Using hardcoded Copilot ID: {copilot_id}")
+            print("Trying to find Copilot ID from existing assignments...")
+            
+            # Try to get Copilot ID from recently assigned issues
+            try:
+                # Check recent issues for Copilot assignments
+                issues_data = run_gh_command(['issue', 'list', '--repo', repo, '--state', 'all', '--limit', '20', '--json', 'number,assignees'])
+                if issues_data:
+                    for issue in issues_data:
+                        for assignee in issue.get('assignees', []):
+                            if assignee.get('login') in ['Copilot', 'copilot-swe-agent', 'github-copilot']:
+                                copilot_id = assignee.get('id')
+                                print(f"Found Copilot ID from issue #{issue['number']}: {copilot_id}")
+                                break
+                        if copilot_id:
+                            break
+            except Exception as e:
+                print(f"Could not search existing assignments: {e}")
+            
+            # Final fallback to known ID
+            if not copilot_id:
+                copilot_id = "BOT_kgDOC9w8XQ"  # Last resort fallback
+                print(f"Using fallback Copilot ID: {copilot_id}")
     except subprocess.CalledProcessError as e:
         print(f"GraphQL assignableUsers query failed: {e.stderr}")
         return False
