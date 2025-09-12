@@ -1,99 +1,124 @@
 name: Auto-Assign Next Micro-Issue
 
 on:
-  issues:
+  pull_request_target:
     types: [closed]
 
 permissions:
+  contents: read
+  pull-requests: read
   issues: write
 
 jobs:
   assign-next-micro-issue:
     runs-on: ubuntu-latest
-    # Only trigger for Game-RFC micro-issues that were closed (not manually closed)
-    if: contains(github.event.issue.title, 'Game-RFC-') && github.event.issue.state_reason == 'completed'
+    if: github.event.pull_request.merged == true
 
     steps:
-      - name: Auto-assign next micro-issue
-        run: |
-          set -euo pipefail
-          REPO="${{ github.repository }}"
-          CLOSED_ISSUE_TITLE="${{ github.event.issue.title }}"
-          CLOSED_ISSUE_NUM="${{ github.event.issue.number }}"
-          
-          echo "🔄 Processing closed micro-issue: $CLOSED_ISSUE_TITLE (#$CLOSED_ISSUE_NUM)"
-          
-          # Extract Game-RFC and micro-issue numbers (e.g., "Game-RFC-004-1" → RFC=004, MICRO=1)
-          if [[ "$CLOSED_ISSUE_TITLE" =~ Game-RFC-([0-9]+)-([0-9]+) ]]; then
-            RFC_NUM="${BASH_REMATCH[1]}"
-            CURRENT_MICRO="${BASH_REMATCH[2]}"
-            NEXT_MICRO=$((CURRENT_MICRO + 1))
-            
-            echo "📋 Looking for next micro-issue: Game-RFC-$RFC_NUM-$NEXT_MICRO"
-            
-            # Find the next sequential micro-issue
-            NEXT_ISSUE=$(gh issue list --repo "$REPO" --state open --json number,title \
-              --jq ".[] | select(.title | test(\"Game-RFC-$RFC_NUM-$NEXT_MICRO:\")) | .number" | head -1 || true)
-            
-            if [ -n "$NEXT_ISSUE" ]; then
-              echo "✅ Found next micro-issue #$NEXT_ISSUE"
-              
-              # Simple Copilot assignment - try both known Copilot usernames
-              COPILOT_LOGIN="copilot-swe-agent"
-              
-              # Assign the next micro-issue to Copilot
-              echo "🤖 Assigning issue #$NEXT_ISSUE to $COPILOT_LOGIN..."
-              gh issue edit "$NEXT_ISSUE" --repo "$REPO" --add-assignee "$COPILOT_LOGIN" || \
-                gh issue edit "$NEXT_ISSUE" --repo "$REPO" --add-assignee "Copilot"
-              
-              # Add progression comment
-              gh issue comment "$NEXT_ISSUE" --repo "$REPO" --body "🔄 **Auto-assigned from micro-issue progression**
-
-          Previous micro-issue #$CLOSED_ISSUE_NUM ($CLOSED_ISSUE_TITLE) completed successfully.
-
-          This is the next sequential task in the Game-RFC-$RFC_NUM implementation chain.
-
-          **Dependencies completed**: Game-RFC-$RFC_NUM-$CURRENT_MICRO ✅"
-              
-              echo "✅ Successfully assigned next micro-issue #$NEXT_ISSUE to Copilot"
-              
-              # Check if this completes the entire Game-RFC
-              REMAINING_ISSUES=$(gh issue list --repo "$REPO" --state open --json title \
-                --jq ".[] | select(.title | test(\"Game-RFC-$RFC_NUM-[0-9]+:\")) | .title" | wc -l || echo 1)
-              
-              if [ "$REMAINING_ISSUES" -eq 1 ]; then
-                echo "🎯 This is the final micro-issue for Game-RFC-$RFC_NUM!"
-                gh issue comment "$NEXT_ISSUE" --repo "$REPO" --body "🎯 **Final micro-issue for Game-RFC-$RFC_NUM**
-
-          This completes the Game-RFC-$RFC_NUM implementation. After this issue is resolved, Game-RFC-$RFC_NUM will be fully implemented! 🚀"
-              fi
-              
-            else
-              echo "ℹ️ No next micro-issue found for Game-RFC-$RFC_NUM-$NEXT_MICRO"
-              echo "This may be the final micro-issue in this Game-RFC series."
-              
-              # Comment on completed Game-RFC
-              gh issue list --repo "$REPO" --state open --label coordinator --json number,title \
-                --jq ".[] | select(.title | test(\"Game-RFC-$RFC_NUM\\b\")) | .number" | head -1 | while read coordinator_issue; do
-                if [ -n "$coordinator_issue" ]; then
-                  gh issue comment "$coordinator_issue" --repo "$REPO" --body "✅ **Game-RFC-$RFC_NUM Implementation Complete**
-
-          All micro-issues for Game-RFC-$RFC_NUM have been completed:
-          - Final micro-issue: #$CLOSED_ISSUE_NUM ($CLOSED_ISSUE_TITLE)
-
-          Game-RFC-$RFC_NUM is now ready for integration testing and closure! 🎉"
-                fi
-              done
-            fi
-            
-          else
-            echo "ℹ️ Not a micro-issue format, skipping auto-assignment"
-          fi
-        
+      - name: Assign next micro-issue (Python)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Success notification
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.number }}
         run: |
-          echo "🎉 Auto-progression workflow completed!"
-          echo "Next micro-issue has been assigned to continue the implementation chain."
+          python - <<'PY'
+          import os, re, sys, json, urllib.request, urllib.parse
+
+          def gh(path, method='GET', data=None):
+            token = os.environ['GITHUB_TOKEN']
+            url = f"https://api.github.com{path}"
+            req = urllib.request.Request(url, method=method)
+            req.add_header('Accept', 'application/vnd.github+json')
+            req.add_header('Authorization', f"Bearer {token}")
+            req.add_header('X-GitHub-Api-Version', '2022-11-28')
+            if data is not None:
+              body = json.dumps(data).encode('utf-8')
+              req.add_header('Content-Type', 'application/json')
+            else:
+              body = None
+            with urllib.request.urlopen(req, body) as resp:
+              txt = resp.read().decode('utf-8')
+              return json.loads(txt) if txt else {}
+
+          def find_issue_from_pr(body, title):
+            # Prefer explicit closing reference like: Fixes #123
+            for text in (body or '' , title or ''):
+              m = re.search(r'(?:close[sd]?|fixe?[sd]?|resolve[sd]?)\s+#(\d+)', text, re.IGNORECASE)
+              if m:
+                return int(m.group(1))
+            return None
+
+          def parse_rfc_micro(text):
+            if not text:
+              return None
+            m = re.search(r'Game-RFC-(\d+)-(\d+)', text)
+            if m:
+              return int(m.group(1)), int(m.group(2))
+            return None
+
+          repo = os.environ['REPO']
+          pr_number = int(os.environ['PR_NUMBER'])
+
+          # Load PR details
+          pr = gh(f"/repos/{repo}/pulls/{pr_number}")
+          pr_title = pr.get('title')
+          pr_body = pr.get('body') or ''
+          print(f"[info] PR #{pr_number}: {pr_title}")
+
+          # Determine closed micro-issue number
+          issue_num = find_issue_from_pr(pr_body, pr_title)
+          if issue_num is None:
+            print('[warn] No closing reference found in PR body/title; attempting from title pattern...')
+          else:
+            print(f"[info] Closing reference resolves issue #{issue_num}")
+
+          # Resolve RFC/micro from the closed issue title, or PR title fallback
+          rfc_num = None
+          cur_micro = None
+          if issue_num is not None:
+            issue = gh(f"/repos/{repo}/issues/{issue_num}")
+            print(f"[info] Closed issue: {issue.get('title')}")
+            parsed = parse_rfc_micro(issue.get('title'))
+            if parsed:
+              rfc_num, cur_micro = parsed
+          if rfc_num is None:
+            parsed = parse_rfc_micro(pr_title)
+            if parsed:
+              rfc_num, cur_micro = parsed
+
+          if rfc_num is None or cur_micro is None:
+            print('[warn] Could not determine RFC/micro from context; exiting gracefully.')
+            sys.exit(0)
+
+          next_micro = cur_micro + 1
+          search_q = f"repo:{repo} is:issue is:open in:title \"Game-RFC-{rfc_num}-{next_micro}:\""
+          search = gh(f"/search/issues?q={urllib.parse.quote(search_q)}")
+          items = search.get('items', [])
+          if not items:
+            print(f"[info] No next micro-issue found for Game-RFC-{rfc_num}-{next_micro}")
+            sys.exit(0)
+
+          next_issue_num = items[0]['number']
+          print(f"[info] Next micro-issue found: #{next_issue_num}")
+
+          # Try to assign to Copilot; attempt both possible usernames
+          def add_assignee(user):
+            try:
+              gh(f"/repos/{repo}/issues/{next_issue_num}/assignees", method='POST', data={'assignees':[user]})
+              return True
+            except Exception as e:
+              return False
+
+          assigned = add_assignee('copilot-swe-agent') or add_assignee('Copilot')
+          print(f"[info] Assigned: {assigned}")
+
+          # Leave a progression comment
+          body_lines = [
+            "**Auto-assigned from micro-issue progression**",
+            "",
+            f"Previous task completed: Game-RFC-{rfc_num}-{cur_micro}",
+            f"Next sequential task: Game-RFC-{rfc_num}-{next_micro}",
+          ]
+          gh(f"/repos/{repo}/issues/{next_issue_num}/comments", method='POST', data={'body':'\n'.join(body_lines)})
+          print('[info] Progression comment added.')
+          PY
