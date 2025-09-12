@@ -1,0 +1,10 @@
+firewall:
+  allow_list:
+    - api.githubcopilot.com
+    - github.com
+    - api.github.com
+    - raw.githubusercontent.com
+    - codeload.github.com
+    - objects.githubusercontent.com
+    - github-cloud.s3.amazonaws.com
+    - uploads.github.com
