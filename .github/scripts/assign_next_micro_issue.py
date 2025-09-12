@@ -94,16 +94,83 @@ def find_next_micro_issue(rfc_num, next_micro, repo):
     
     return None
 
-def assign_issue(issue_number, repo):
-    """Try to assign issue to Copilot"""
-    for assignee in ['copilot-swe-agent', 'Copilot']:
+def find_copilot_user_id(repo):
+    """Find Copilot user ID using GraphQL"""
+    # Try different possible Copilot usernames
+    for username in ['app/copilot-swe-agent', 'copilot-swe-agent', 'Copilot']:
         try:
-            result = subprocess.run(['gh', 'issue', 'edit', str(issue_number), '--repo', repo, '--add-assignee', assignee], 
+            query = f'''
+            query {{
+              user(login: "{username}") {{
+                id
+                login
+              }}
+            }}
+            '''
+            result = subprocess.run(['gh', 'api', 'graphql', '-f', f'query={query}'], 
                                   capture_output=True, text=True, check=True)
-            return True
-        except subprocess.CalledProcessError:
+            data = json.loads(result.stdout)
+            if data.get('data', {}).get('user'):
+                user_id = data['data']['user']['id']
+                print(f"Found Copilot user ID: {user_id} for username: {username}")
+                return user_id, username
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
             continue
-    return False
+    
+    print("Could not find Copilot user ID")
+    return None, None
+
+def assign_issue(issue_number, repo):
+    """Assign issue to Copilot using GraphQL"""
+    # First find Copilot's user ID
+    copilot_id, copilot_username = find_copilot_user_id(repo)
+    if not copilot_id:
+        return False
+    
+    # Get the issue's node ID
+    try:
+        issue_data = run_gh_command(['issue', 'view', str(issue_number), '--repo', repo, '--json', 'id'])
+        if not issue_data:
+            return False
+        issue_node_id = issue_data['id']
+    except Exception as e:
+        print(f"Failed to get issue node ID: {e}")
+        return False
+    
+    # Assign using GraphQL mutation
+    try:
+        mutation = f'''
+        mutation {{
+          updateIssue(input: {{
+            id: "{issue_node_id}"
+            assigneeIds: ["{copilot_id}"]
+          }}) {{
+            issue {{
+              number
+              assignees(first: 10) {{
+                nodes {{
+                  login
+                }}
+              }}
+            }}
+          }}
+        }}
+        '''
+        
+        result = subprocess.run(['gh', 'api', 'graphql', '-f', f'query={mutation}'], 
+                              capture_output=True, text=True, check=True)
+        
+        data = json.loads(result.stdout)
+        if data.get('data', {}).get('updateIssue'):
+            print(f"Successfully assigned issue #{issue_number} to {copilot_username}")
+            return True
+        else:
+            print(f"GraphQL mutation failed: {data}")
+            return False
+            
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        print(f"Failed to assign via GraphQL: {e}")
+        return False
 
 def add_progression_comment(issue_number, repo, prev_issue, rfc_num, current_micro, next_micro, pr_number):
     """Add progression comment to the newly assigned issue"""
