@@ -1,0 +1,13 @@
+<code translate="no" dir="ltr"><span class="devsite-syntax-nt">have_fun</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">false</span>
+<span class="devsite-syntax-nt">code_review</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">disable</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">false</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">comment_severity_threshold</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">MEDIUM</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">max_review_comments</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">-1</span>
+<span class="devsite-syntax-w">  </span><span class="devsite-syntax-nt">pull_request_opened</span><span class="devsite-syntax-p">:</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-nt">help</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">false</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-nt">summary</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">true</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-nt">code_review</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">true</span>
+<span class="devsite-syntax-w">    </span><span class="devsite-syntax-nt">include_drafts</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-l devsite-syntax-l-Scalar devsite-syntax-l-Scalar-Plain">true</span>
+<span class="devsite-syntax-nt">ignore_patterns</span><span class="devsite-syntax-p">:</span><span class="devsite-syntax-w"> </span><span class="devsite-syntax-p devsite-syntax-p-Indicator">[]</span>
+</code>
+
