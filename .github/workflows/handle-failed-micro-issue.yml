@@ -25,8 +25,8 @@ jobs:
   handle-failure:
     runs-on: ubuntu-latest
     steps:
-    - name: Handle failed micro-issue
-      run: |
+      - name: Handle failed micro-issue
+        run: |
         set -euo pipefail
         REPO="${{ github.repository }}"
         FAILED_ISSUE="${{ github.event.inputs.failed_issue_number }}"
@@ -134,11 +134,11 @@ Original issue: $ISSUE_TITLE
             ;;
         esac
         
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Summary
-      run: |
+      - name: Summary
+        run: |
         echo "🎯 Failed micro-issue handling completed!"
         echo "Strategy: ${{ github.event.inputs.restart_strategy }}"
         echo "Issue: #${{ github.event.inputs.failed_issue_number }}"

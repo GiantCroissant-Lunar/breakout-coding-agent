@@ -14,8 +14,8 @@ jobs:
     if: contains(github.event.issue.title, 'Game-RFC-') && github.event.issue.state_reason == 'completed'
 
     steps:
-    - name: Auto-assign next micro-issue
-      run: |
+      - name: Auto-assign next micro-issue
+        run: |
         set -euo pipefail
         REPO="${{ github.repository }}"
         CLOSED_ISSUE_TITLE="${{ github.event.issue.title }}"
@@ -38,21 +38,8 @@ jobs:
           if [ -n "$NEXT_ISSUE" ]; then
             echo "✅ Found next micro-issue #$NEXT_ISSUE"
             
-            # Get Copilot Bot user info
-            COPILOT_LOGIN=$(gh api graphql -f query='
-              query {
-                repository(owner: "GiantCroissant-Lunar", name: "breakout-coding-agent") {
-                  suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
-                    nodes {
-                      login
-                      __typename
-                      ... on Bot {
-                        id
-                      }
-                    }
-                  }
-                }
-              }' --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent" and .__typename == "Bot") | .login' || echo "Copilot")
+            # Simple Copilot assignment - try both known Copilot usernames
+            COPILOT_LOGIN="copilot-swe-agent"
             
             # Assign the next micro-issue to Copilot
             echo "🤖 Assigning issue #$NEXT_ISSUE to $COPILOT_LOGIN..."
@@ -103,10 +90,10 @@ Game-RFC-$RFC_NUM is now ready for integration testing and closure! 🎉"
           echo "ℹ️ Not a micro-issue format, skipping auto-assignment"
         fi
         
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Success notification
-      run: |
+      - name: Success notification
+        run: |
         echo "🎉 Auto-progression workflow completed!"
         echo "Next micro-issue has been assigned to continue the implementation chain."
