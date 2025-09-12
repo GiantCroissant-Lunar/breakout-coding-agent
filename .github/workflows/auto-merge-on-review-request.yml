@@ -76,7 +76,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Trigger next micro-issue assignment
+      run: |
+        echo "🔄 Triggering auto-assign workflow for next micro-issue..."
+        gh workflow run auto-assign-next-micro-issue.yml
+        echo "✅ Auto-assign workflow triggered"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Success notification
       run: |
         echo "🎉 Auto-merge workflow completed successfully!"
         echo "PR #${{ github.event.number }} has been merged automatically after review request."
+        echo "🔄 Next micro-issue assignment workflow has been triggered."
