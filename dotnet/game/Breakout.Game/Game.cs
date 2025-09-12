@@ -202,7 +202,7 @@ public class Game
                 }
                 
                 // Check win condition (all bricks destroyed)
-                if (BrickLayout.AllBricksDestroyed())
+                if (BrickSystem.CheckWinCondition(BrickLayout))
                 {
                     State = GameState.GameOver; // Will be changed to Win state in future RFC
                 }
