@@ -81,22 +81,35 @@ def extract_rfc_info(issue_number, repo):
     return None, None
 
 def find_next_micro_issue(rfc_num, next_micro, repo):
-    """Find the next micro-issue in sequence (tolerant to padding and colon)."""
-    issues = run_gh_command(['issue', 'list', '--repo', repo, '--state', 'open', '--json', 'number,title'])
-    if not issues:
-        return None
+    """Find the next micro-issue in sequence with robust matching.
 
-    # Accept RFC numbers with or without zero-padding, and with or without trailing colon
-    patterns = [
-        rf"Game-RFC-{rfc_num}-{next_micro}\b",
-        rf"Game-RFC-{rfc_num}-{next_micro}:",
-        rf"Game-RFC-{rfc_num}-{next_micro} (tolerant match)\b",
-        rf"Game-RFC-{rfc_num}-{next_micro} (tolerant match):",
+    Tries a paginated local list first, then falls back to server-side search.
+    Matches both padded and unpadded RFC numbers, with optional colon or hyphen.
+    """
+    padded = f"{rfc_num:03d}"
+    rx = rf"Game-RFC-(?:{rfc_num}|{padded})-{next_micro}(?:\b|:|\s-)"
+
+    # 1) Local list with higher limit
+    issues = run_gh_command(['issue', 'list', '--repo', repo, '--state', 'open', '--limit', '200', '--json', 'number,title'])
+    if issues:
+        for issue in issues:
+            title = issue.get('title', '')
+            if re.search(rx, title):
+                return issue['number']
+
+    # 2) Fallback to API search (exact phrases)
+    candidates = [
+        f'"Game-RFC-{rfc_num}-{next_micro}:"',
+        f'"Game-RFC-{padded}-{next_micro}:"',
+        f'"Game-RFC-{rfc_num}-{next_micro} "',
+        f'"Game-RFC-{padded}-{next_micro} "',
     ]
-    for issue in issues:
-        title = issue.get('title', '')
-        if any(re.search(p, title) for p in patterns):
-            return issue['number']
+    for phrase in candidates:
+        q = f"repo:{repo} is:issue is:open in:title {phrase}"
+        data = run_gh_command(['api', f'/search/issues?q={q}'])
+        items = (data or {}).get('items', [])
+        if items:
+            return items[0]['number']
 
     return None
 
