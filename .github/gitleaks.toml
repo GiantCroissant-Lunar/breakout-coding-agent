@@ -1,9 +1,2 @@
-[allowlist]
-description = "Allowlist for non-sensitive caveat logs and chat history"
-paths = [
-  # Allow caveat message drops in repo root
-  "^2025-.*-caveat-the-messages-.*\\.txt$",
-  # Allow chat history files in docs directory
-  "^docs/chat-history/.*\\.txt$"
-]
-
+# Gitleaks configuration for breakout-coding-agent
+# Chat history and conversation exports are now excluded via .gitignore
