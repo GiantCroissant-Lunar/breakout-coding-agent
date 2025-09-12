@@ -8,7 +8,10 @@ import os
 import sys
 import json
 import subprocess
+import re
+import glob
 from typing import Dict, List, Optional, NamedTuple
+from pathlib import Path
 import logging
 
 # Configure logging
@@ -123,196 +126,9 @@ class GitHubAPI:
             return issue_data['number']
         return None
 
-class MicroIssueTemplates:
-    """Templates for decomposing Game-RFCs into micro-issues"""
-    
-    @staticmethod
-    def get_game_rfc_004_templates() -> List[MicroIssue]:
-        """Game-RFC-004: Brick System decomposition"""
-        return [
-            MicroIssue(
-                title="Game-RFC-004-1: Create Brick Model Class",
-                body="""@copilot Please implement the basic Brick model class for Game-RFC-004.
-
-## Scope
-Create a single `Brick` class with:
-- Position (x, y) properties
-- Color/Type property  
-- IsDestroyed flag
-- Basic constructor
-
-## Files Expected
-- `dotnet/game/Breakout.Game/Models/Brick.cs`
-
-## Definition of Done
-- [ ] Brick class compiles without warnings
-- [ ] Basic properties implemented (Position, Color, IsDestroyed)
-- [ ] Constructor accepts position and type parameters
-- [ ] Proper C# documentation comments
-
-**Parent RFC**: Game-RFC-004: Brick System  
-**Dependencies**: None""",
-                assign_immediately=True
-            ),
-            
-            MicroIssue(
-                title="Game-RFC-004-2: Implement Brick Collision Detection", 
-                body="""@copilot Please implement collision detection for bricks.
-
-## Scope
-Add collision detection methods to the Brick class:
-- CollidesWith(Ball ball) method
-- Bounding box calculation
-- Collision response logic
-
-## Files Expected
-- Update `dotnet/game/Breakout.Game/Models/Brick.cs`
-- Possibly new `dotnet/game/Breakout.Game/Physics/CollisionDetection.cs`
-
-## Definition of Done
-- [ ] Collision detection methods implemented
-- [ ] Works with existing Ball class
-- [ ] No compilation errors
-- [ ] Basic collision tests pass
-
-**Parent RFC**: Game-RFC-004: Brick System  
-**Dependencies**: Game-RFC-004-1""",
-                assign_immediately=False
-            ),
-            
-            MicroIssue(
-                title="Game-RFC-004-3: Add Brick Rendering System",
-                body="""@copilot Please implement brick rendering functionality.
-
-## Scope
-Add rendering capabilities for bricks:
-- BrickRenderer component
-- Integration with existing rendering pipeline
-- Color/texture support
-
-## Files Expected  
-- `dotnet/game/Breakout.Game/Rendering/BrickRenderer.cs`
-- Updates to main game loop
-
-## Definition of Done
-- [ ] Bricks visible on screen
-- [ ] Different colors render correctly
-- [ ] Performance is acceptable
-- [ ] Integration with existing rendering system
-
-**Parent RFC**: Game-RFC-004: Brick System  
-**Dependencies**: Game-RFC-004-1""",
-                assign_immediately=False
-            ),
-            
-            MicroIssue(
-                title="Game-RFC-004-4: Create Brick Layout Generator",
-                body="""@copilot Please implement brick layout generation.
-
-## Scope
-Create system to generate brick layouts:
-- BrickLayoutGenerator class
-- Support for different patterns (rows, shapes)
-- Configurable brick counts and spacing
-
-## Files Expected
-- `dotnet/game/Breakout.Game/Layout/BrickLayoutGenerator.cs`
-- Configuration/settings for layouts
-
-## Definition of Done
-- [ ] Can generate standard brick patterns
-- [ ] Configurable rows and columns
-- [ ] Different brick types supported
-- [ ] Layout generation is deterministic
-
-**Parent RFC**: Game-RFC-004: Brick System  
-**Dependencies**: Game-RFC-004-1""",
-                assign_immediately=False
-            ),
-            
-            MicroIssue(
-                title="Game-RFC-004-5: Integrate Brick System with Game Loop",
-                body="""@copilot Please integrate the complete Brick System with the main game.
-
-## Scope
-Final integration of all brick components:
-- Add bricks to game state
-- Handle brick destruction
-- Update score when bricks destroyed
-- Win condition (all bricks destroyed)
-
-## Files Expected
-- Updates to main game loop files
-- Score tracking integration
-- Game state management updates
-
-## Definition of Done
-- [ ] Bricks appear in game
-- [ ] Ball destroys bricks on collision
-- [ ] Score increases when bricks destroyed
-- [ ] Game ends when all bricks destroyed
-- [ ] Complete Breakout gameplay working
-
-**Parent RFC**: Game-RFC-004: Brick System  
-**Dependencies**: Game-RFC-004-1, Game-RFC-004-2, Game-RFC-004-3, Game-RFC-004-4""",
-                assign_immediately=False
-            )
-        ]
-    
-    @staticmethod
-    def get_game_rfc_005_templates() -> List[MicroIssue]:
-        """Game-RFC-005: Game State Management decomposition"""
-        return [
-            MicroIssue(
-                title="Game-RFC-005-1: Create Game State Enum and Manager",
-                body="""@copilot Please implement basic game state management.
-
-## Scope
-Create foundation for game state management:
-- GameState enum (Menu, Playing, Paused, GameOver, Victory)
-- GameStateManager class
-- State transition methods
-
-## Files Expected
-- `dotnet/game/Breakout.Game/State/GameState.cs`
-- `dotnet/game/Breakout.Game/State/GameStateManager.cs`
-
-## Definition of Done
-- [ ] GameState enum with all required states
-- [ ] GameStateManager handles state transitions
-- [ ] State change events/notifications
-- [ ] Thread-safe state access
-
-**Parent RFC**: Game-RFC-005: Game State Management  
-**Dependencies**: None""",
-                assign_immediately=True
-            ),
-            
-            MicroIssue(
-                title="Game-RFC-005-2: Implement Menu System",
-                body="""@copilot Please implement the game menu system.
-
-## Scope
-Create menu system for game navigation:
-- Main menu with Start/Quit options
-- Pause menu with Resume/Quit options
-- Menu navigation handling
-
-## Files Expected
-- `dotnet/game/Breakout.Game/UI/MainMenu.cs`
-- `dotnet/game/Breakout.Game/UI/PauseMenu.cs`
-
-## Definition of Done
-- [ ] Main menu displays correctly
-- [ ] Menu navigation works with keyboard/mouse
-- [ ] Start button transitions to Playing state
-- [ ] Pause menu accessible during gameplay
-
-**Parent RFC**: Game-RFC-005: Game State Management  
-**Dependencies**: Game-RFC-005-1""",
-                assign_immediately=False
-            )
-        ]
+# Import RFC parser functions
+sys.path.append(os.path.dirname(__file__))
+from rfc_parser import parse_any_rfc
 
 class MicroIssueCreator:
     def __init__(self, gh_token: str, repo_owner: str, repo_name: str):
@@ -333,22 +149,41 @@ class MicroIssueCreator:
         logger.info(f"Copilot Bot ID: {self.copilot_bot_id}")
     
     def create_micro_issues(self, game_rfc: str) -> List[str]:
-        """Create micro-issues for specified Game-RFC"""
-        logger.info(f"🔧 Creating micro-issues for {game_rfc}...")
+        """Create micro-issues for specified Game-RFC using dynamic parsing"""
+        logger.info(f"🔧 Creating micro-issues for {game_rfc} using RFC parsing...")
         
-        # Get templates based on Game-RFC
-        if game_rfc == "Game-RFC-004":
-            templates = MicroIssueTemplates.get_game_rfc_004_templates()
-        elif game_rfc == "Game-RFC-005":
-            templates = MicroIssueTemplates.get_game_rfc_005_templates()
-        else:
-            logger.error(f"No templates defined for {game_rfc}")
+        # Extract RFC number and find corresponding file
+        rfc_match = re.match(r'Game-RFC-(\d+)', game_rfc)
+        if not rfc_match:
+            logger.error(f"Invalid Game-RFC format: {game_rfc}")
+            return []
+            
+        rfc_number = rfc_match.group(1)
+        rfc_file = f"docs/game-rfcs/RFC-{rfc_number.zfill(3)}-*.md"
+        
+        # Find RFC file using glob pattern
+        import glob
+        rfc_files = glob.glob(rfc_file)
+        if not rfc_files:
+            logger.error(f"RFC file not found for {game_rfc}")
+            return []
+            
+        rfc_path = rfc_files[0]
+        logger.info(f"📄 Parsing RFC: {rfc_path}")
+        
+        # Parse RFC dynamically
+        try:
+            templates = parse_any_rfc(rfc_path, game_rfc)
+            logger.info(f"🎯 Generated {len(templates)} micro-issues from RFC structure")
+        except Exception as e:
+            logger.error(f"Failed to parse RFC {rfc_path}: {e}")
             return []
         
         created_issues = []
         
-        for template in templates:
-            assignee_ids = [self.copilot_bot_id] if template.assign_immediately else []
+        for i, template in enumerate(templates):
+            # First issue gets assigned immediately, others depend on completion
+            assignee_ids = [self.copilot_bot_id] if i == 0 else []
             
             issue_number = self.api.create_issue(
                 self.repo_id,
@@ -359,8 +194,8 @@ class MicroIssueCreator:
             
             if issue_number:
                 created_issues.append(issue_number)
-                if not template.assign_immediately:
-                    logger.info(f"   (Not assigned - depends on other micro-issues)")
+                if i > 0:
+                    logger.info(f"   (Not assigned - depends on completion of previous micro-issues)")
             else:
                 logger.error(f"Failed to create issue: {template.title}")
         
