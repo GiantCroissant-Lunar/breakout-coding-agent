@@ -1,29 +1,37 @@
-namespace Breakout.Game;
+using System;
+using Breakout.Game.Systems;
+using Breakout.Game.Models;
 
-/// <summary>
-/// Entry point for the Breakout game
-/// </summary>
-public class Program
+class ScoreTest
 {
-    /// <summary>
-    /// Main entry point
-    /// </summary>
-    /// <param name="args">Command line arguments</param>
-    public static void Main(string[] args)
+    static void Main()
     {
-        try
-        {
-            var game = new Game();
-            game.Run();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred: {ex.Message}");
-            Console.WriteLine("Press any key to exit...");
-            if (!Console.IsInputRedirected)
-            {
-                Console.ReadKey();
-            }
-        }
+        Console.WriteLine("Testing Score System Implementation...");
+        
+        var scoreSystem = new ScoreSystem();
+        
+        Console.WriteLine($"Initial state:");
+        Console.WriteLine($"  - Current Score: {scoreSystem.CurrentScore}");
+        Console.WriteLine($"  - High Score: {scoreSystem.HighScore}");
+        Console.WriteLine($"  - Bricks Destroyed: {scoreSystem.BricksDestroyed}");
+        
+        // Test adding points for different brick types
+        Console.WriteLine("\nAdding points for Standard brick (10 points):");
+        scoreSystem.AddPoints(10);
+        Console.WriteLine($"  - {scoreSystem.GetScoreDisplay()}");
+        Console.WriteLine($"  - {scoreSystem.GetBricksDestroyedDisplay()}");
+        
+        Console.WriteLine("\nAdding points for Strong brick (20 points):");
+        scoreSystem.AddPoints(20);
+        Console.WriteLine($"  - {scoreSystem.GetScoreDisplay()}");
+        Console.WriteLine($"  - {scoreSystem.GetBricksDestroyedDisplay()}");
+        
+        Console.WriteLine("\nAdding points for Bonus brick (50 points):");
+        scoreSystem.AddPoints(50);
+        Console.WriteLine($"  - {scoreSystem.GetScoreDisplay()}");
+        Console.WriteLine($"  - {scoreSystem.GetBricksDestroyedDisplay()}");
+        Console.WriteLine($"  - {scoreSystem.GetHighScoreDisplay()}");
+        
+        Console.WriteLine("\n✅ Score System Implementation Test Complete!");
     }
 }
