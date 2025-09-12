@@ -131,47 +131,58 @@ def assign_issue(issue_number, repo):
     print(f"Issue node id: {assignable_id}")
 
     # Resolve Copilot id from assignableUsers
+    desired_login = os.environ.get('ASSIGNEE_LOGIN', 'copilot-swe-agent')
     try:
         owner, name = repo.split('/')
     except ValueError:
         print(f"Invalid repo format: {repo}")
         return False
 
-    # Query assignable users for 'Copilot' and 'copilot'
-    query = f'''
-    query {{
-      repository(owner: "{owner}", name: "{name}") {{
-        assignableUsers(first: 50, query: "copilot") {{
-          nodes {{ __typename login id }}
+    def query_assignable(query_text: str):
+        q = f'''
+        query {{
+          repository(owner: "{owner}", name: "{name}") {{
+            assignableUsers(first: 100, query: "{query_text}") {{
+              nodes {{ __typename login id }}
+            }}
+          }}
         }}
-      }}
-    }}
-    '''
-    try:
-        result = subprocess.run(
-            ['gh','api','graphql','-f',f'query={query}'],
+        '''
+        res = subprocess.run(
+            ['gh','api','graphql','-f',f'query={q}'],
             capture_output=True, text=True, check=True
         )
-        data = json.loads(result.stdout)
-        nodes = (
-            data.get('data', {})
-                .get('repository', {})
-                .get('assignableUsers', {})
-                .get('nodes', [])
+        d = json.loads(res.stdout)
+        return (
+            d.get('data', {})
+             .get('repository', {})
+             .get('assignableUsers', {})
+             .get('nodes', [])
         )
+
+    try:
         copilot_id = None
+        # 1) Exact desired login
+        nodes = query_assignable(desired_login)
         for n in nodes:
-            if n.get('login') in ('Copilot','copilot-swe-agent'):
+            if n.get('login') == desired_login:
                 copilot_id = n.get('id')
-                print(f"Copilot login={n.get('login')} id={copilot_id}")
+                print(f"Found desired assignee login={n.get('login')} id={copilot_id}")
                 break
-        if not copilot_id and nodes:
-            # Fallback: take the first candidate that looks like Copilot
+        # 2) Fallback broad query "copilot" (prefer copilot-swe-agent if present)
+        if not copilot_id:
+            nodes = query_assignable('copilot')
             for n in nodes:
-                if 'copilot' in (n.get('login','').lower()):
+                if n.get('login') == 'copilot-swe-agent':
                     copilot_id = n.get('id')
-                    print(f"Fallback Copilot id={copilot_id} from login={n.get('login')}")
+                    print(f"Found copilot-swe-agent id={copilot_id}")
                     break
+            if not copilot_id:
+                for n in nodes:
+                    if n.get('login') == 'Copilot':
+                        copilot_id = n.get('id')
+                        print(f"Found Copilot id={copilot_id}")
+                        break
         if not copilot_id:
             print("Could not locate Copilot in assignableUsers; ensure Copilot is enabled for this repo.")
             return False
