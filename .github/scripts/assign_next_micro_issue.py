@@ -7,6 +7,7 @@ import re
 import json
 import subprocess
 import sys
+import urllib.parse
 
 def run_gh_command(args):
     """Run gh CLI command and return JSON result"""
@@ -106,7 +107,8 @@ def find_next_micro_issue(rfc_num, next_micro, repo):
     ]
     for phrase in candidates:
         q = f"repo:{repo} is:issue is:open in:title {phrase}"
-        data = run_gh_command(['api', f'/search/issues?q={q}'])
+        encoded = urllib.parse.quote(q, safe='')
+        data = run_gh_command(['api', f'/search/issues?q={encoded}'])
         items = (data or {}).get('items', [])
         if items:
             return items[0]['number']
