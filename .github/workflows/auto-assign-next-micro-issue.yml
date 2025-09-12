@@ -19,11 +19,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Preflight gh environment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh --version
+          gh auth status || true
       - name: Assign next micro-issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "🔄 Manual trigger: Looking for recently merged PRs to process"
@@ -37,4 +45,4 @@ jobs:
               exit 0
             fi
           fi
-          python .github/scripts/assign_next_micro_issue.py
+          python3 .github/scripts/assign_next_micro_issue.py

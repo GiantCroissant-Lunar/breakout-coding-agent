@@ -81,17 +81,23 @@ def extract_rfc_info(issue_number, repo):
     return None, None
 
 def find_next_micro_issue(rfc_num, next_micro, repo):
-    """Find the next micro-issue in sequence"""
+    """Find the next micro-issue in sequence (tolerant to padding and colon)."""
     issues = run_gh_command(['issue', 'list', '--repo', repo, '--state', 'open', '--json', 'number,title'])
     if not issues:
         return None
-        
-    pattern = f"Game-RFC-{rfc_num:03d}-{next_micro}:"
+
+    # Accept RFC numbers with or without zero-padding, and with or without trailing colon
+    patterns = [
+        rf"Game-RFC-{rfc_num}-{next_micro}\b",
+        rf"Game-RFC-{rfc_num}-{next_micro}:",
+        rf"Game-RFC-{rfc_num}-{next_micro} (tolerant match)\b",
+        rf"Game-RFC-{rfc_num}-{next_micro} (tolerant match):",
+    ]
     for issue in issues:
         title = issue.get('title', '')
-        if pattern in title:
+        if any(re.search(p, title) for p in patterns):
             return issue['number']
-    
+
     return None
 
 
@@ -191,7 +197,7 @@ def add_progression_comment(issue_number, repo, prev_issue, rfc_num, current_mic
     comment = f"""🔄 **Auto-assigned from micro-issue progression**
 
 Previous micro-issue #{prev_issue} completed: Game-RFC-{rfc_num:03d}-{current_micro}
-This is the next sequential task: Game-RFC-{rfc_num:03d}-{next_micro}
+This is the next sequential task: Game-RFC-{rfc_num}-{next_micro} (tolerant match)
 
 **Auto-progression**: Assigned after PR #{pr_number} was merged."""
     
@@ -227,7 +233,7 @@ def main():
         sys.exit(0)
     
     next_micro = current_micro + 1
-    print(f"🔍 Looking for next micro-issue: Game-RFC-{rfc_num:03d}-{next_micro}")
+    print(f"🔍 Looking for next micro-issue: Game-RFC-{rfc_num}-{next_micro} (tolerant match)")
     
     # Find next micro-issue
     next_issue = find_next_micro_issue(rfc_num, next_micro, repo)
