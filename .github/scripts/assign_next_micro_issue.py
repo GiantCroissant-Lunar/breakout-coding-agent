@@ -94,62 +94,74 @@ def find_next_micro_issue(rfc_num, next_micro, repo):
     
     return None
 
-def find_copilot_user_id(repo):
-    """Find Copilot user ID using GraphQL"""
-    # Try different possible Copilot usernames
-    for username in ['app/copilot-swe-agent', 'copilot-swe-agent', 'Copilot']:
-        try:
-            query = f'''
-            query {{
-              user(login: "{username}") {{
-                id
-                login
-              }}
-            }}
-            '''
-            result = subprocess.run(['gh', 'api', 'graphql', '-f', f'query={query}'], 
-                                  capture_output=True, text=True, check=True)
-            data = json.loads(result.stdout)
-            if data.get('data', {}).get('user'):
-                user_id = data['data']['user']['id']
-                print(f"Found Copilot user ID: {user_id} for username: {username}")
-                return user_id, username
-        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError):
-            continue
-    
-    print("Could not find Copilot user ID")
-    return None, None
 
 def assign_issue(issue_number, repo):
-    """Assign issue to Copilot using GraphQL"""
-    # First find Copilot's user ID
-    copilot_id, copilot_username = find_copilot_user_id(repo)
-    if not copilot_id:
-        return False
-    
+    """Assign issue to Copilot using correct GraphQL mutation"""
     # Get the issue's node ID
     try:
         issue_data = run_gh_command(['issue', 'view', str(issue_number), '--repo', repo, '--json', 'id'])
         if not issue_data:
+            print(f"Could not get issue #{issue_number} details")
             return False
         issue_node_id = issue_data['id']
+        print(f"Issue #{issue_number} node ID: {issue_node_id}")
     except Exception as e:
         print(f"Failed to get issue node ID: {e}")
         return False
     
-    # Assign using GraphQL mutation
+    # First, query for suggested actors to get Copilot's ID
+    try:
+        query = f'''
+        query {{
+          node(id: "{issue_node_id}") {{
+            ... on Issue {{
+              suggestedActors(first: 10) {{
+                nodes {{
+                  ... on User {{ login id }}
+                  ... on Bot {{ login id }}
+                }}
+              }}
+            }}
+          }}
+        }}
+        '''
+        
+        result = subprocess.run(['gh', 'api', 'graphql', '-f', f'query={query}'], 
+                              capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        
+        # Find copilot-swe-agent in suggested actors
+        copilot_id = None
+        if data.get('data', {}).get('node', {}).get('suggestedActors', {}).get('nodes'):
+            for actor in data['data']['node']['suggestedActors']['nodes']:
+                if actor.get('login') == 'copilot-swe-agent':
+                    copilot_id = actor.get('id')
+                    print(f"Found Copilot actor ID: {copilot_id}")
+                    break
+        
+        if not copilot_id:
+            print("Copilot not found in suggested actors")
+            return False
+            
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        print(f"Failed to get suggested actors: {e}")
+        return False
+    
+    # Now assign using replaceActorsForAssignable mutation
     try:
         mutation = f'''
         mutation {{
-          updateIssue(input: {{
-            id: "{issue_node_id}"
-            assigneeIds: ["{copilot_id}"]
+          replaceActorsForAssignable(input: {{
+            assignableId: "{issue_node_id}"
+            actorIds: ["{copilot_id}"]
           }}) {{
-            issue {{
-              number
-              assignees(first: 10) {{
-                nodes {{
-                  login
+            assignable {{
+              ... on Issue {{
+                number
+                assignees(first: 10) {{
+                  nodes {{
+                    login
+                  }}
                 }}
               }}
             }}
@@ -161,15 +173,17 @@ def assign_issue(issue_number, repo):
                               capture_output=True, text=True, check=True)
         
         data = json.loads(result.stdout)
-        if data.get('data', {}).get('updateIssue'):
-            print(f"Successfully assigned issue #{issue_number} to {copilot_username}")
+        if data.get('data', {}).get('replaceActorsForAssignable'):
+            assignees = data['data']['replaceActorsForAssignable']['assignable']['assignees']['nodes']
+            assigned_logins = [a['login'] for a in assignees]
+            print(f"Successfully assigned issue #{issue_number}. Assignees: {assigned_logins}")
             return True
         else:
-            print(f"GraphQL mutation failed: {data}")
+            print(f"replaceActorsForAssignable mutation failed: {data}")
             return False
             
     except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
-        print(f"Failed to assign via GraphQL: {e}")
+        print(f"Failed to assign via replaceActorsForAssignable: {e}")
         return False
 
 def add_progression_comment(issue_number, repo, prev_issue, rfc_num, current_micro, next_micro, pr_number):
