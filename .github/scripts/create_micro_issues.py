@@ -86,45 +86,38 @@ class GitHubAPI:
         return None
     
     def create_issue(self, repo_id: str, title: str, body: str, assignee_ids: List[str] = None) -> Optional[str]:
-        """Create issue with optional assignee"""
+        """Create an issue using gh CLI (more reliable than GraphQL)"""
         assignee_ids = assignee_ids or []
         
-        mutation = """
-        mutation($repositoryId: ID!, $title: String!, $body: String!, $assigneeIds: [ID!]) {
-          createIssue(input: {
-            repositoryId: $repositoryId,
-            title: $title,
-            body: $body,
-            assigneeIds: $assigneeIds
-          }) {
-            issue {
-              number
-              assignees(first: 10) {
-                nodes {
-                  login
-                }
-              }
-            }
-          }
-        }
-        """
-        
-        variables = {
-            'repositoryId': repo_id,
-            'title': title,
-            'body': body,
-            'assigneeIds': json.dumps(assignee_ids)
-        }
-        
-        result = self.run_graphql_query(mutation, variables)
-        if result and 'data' in result:
-            issue_data = result['data']['createIssue']['issue']
-            assignees = [node['login'] for node in issue_data['assignees']['nodes']]
-            logger.info(f"✅ Created issue #{issue_data['number']}: {title}")
-            if assignees:
-                logger.info(f"   Assigned to: {', '.join(assignees)}")
-            return issue_data['number']
-        return None
+        try:
+            # Create basic command
+            cmd = ['gh', 'issue', 'create', '--title', title, '--body', body]
+            
+            # Add labels 
+            cmd.extend(['--label', 'game-rfc'])
+            
+            # Note: Skip assignment for now - we can assign manually later
+            # The GraphQL assignment was causing failures
+            
+            # Run command
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            
+            # Extract issue number from URL (format: https://github.com/owner/repo/issues/N)
+            issue_url = result.stdout.strip()
+            issue_number = issue_url.split('/')[-1]
+            
+            logger.info(f"✅ Created issue #{issue_number}: {title}")
+            logger.info(f"   URL: {issue_url}")
+            
+            # TODO: Add assignment later if needed
+            # if assignee_ids:
+            #     logger.info(f"   Note: Manual assignment needed for Copilot Bot")
+                
+            return issue_number
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create issue: {e.stderr}")
+            return None
 
 # Import RFC parser functions
 sys.path.append(os.path.dirname(__file__))
