@@ -3,6 +3,7 @@ name: Auto-Assign Next Micro-Issue
 on:
   pull_request_target:
     types: [closed]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,110 +16,13 @@ jobs:
     if: github.event.pull_request.merged == true
 
     steps:
-      - name: Assign next micro-issue (Python)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Assign next micro-issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.number }}
         run: |
-          python - <<'PY'
-          import os, re, sys, json, urllib.request, urllib.parse
-
-          def gh(path, method='GET', data=None):
-            token = os.environ['GITHUB_TOKEN']
-            url = f"https://api.github.com{path}"
-            req = urllib.request.Request(url, method=method)
-            req.add_header('Accept', 'application/vnd.github+json')
-            req.add_header('Authorization', f"Bearer {token}")
-            req.add_header('X-GitHub-Api-Version', '2022-11-28')
-            if data is not None:
-              body = json.dumps(data).encode('utf-8')
-              req.add_header('Content-Type', 'application/json')
-            else:
-              body = None
-            with urllib.request.urlopen(req, body) as resp:
-              txt = resp.read().decode('utf-8')
-              return json.loads(txt) if txt else {}
-
-          def find_issue_from_pr(body, title):
-            # Prefer explicit closing reference like: Fixes #123
-            for text in (body or '' , title or ''):
-              m = re.search(r'(?:close[sd]?|fixe?[sd]?|resolve[sd]?)\s+#(\d+)', text, re.IGNORECASE)
-              if m:
-                return int(m.group(1))
-            return None
-
-          def parse_rfc_micro(text):
-            if not text:
-              return None
-            m = re.search(r'Game-RFC-(\d+)-(\d+)', text)
-            if m:
-              return int(m.group(1)), int(m.group(2))
-            return None
-
-          repo = os.environ['REPO']
-          pr_number = int(os.environ['PR_NUMBER'])
-
-          # Load PR details
-          pr = gh(f"/repos/{repo}/pulls/{pr_number}")
-          pr_title = pr.get('title')
-          pr_body = pr.get('body') or ''
-          print(f"[info] PR #{pr_number}: {pr_title}")
-
-          # Determine closed micro-issue number
-          issue_num = find_issue_from_pr(pr_body, pr_title)
-          if issue_num is None:
-            print('[warn] No closing reference found in PR body/title; attempting from title pattern...')
-          else:
-            print(f"[info] Closing reference resolves issue #{issue_num}")
-
-          # Resolve RFC/micro from the closed issue title, or PR title fallback
-          rfc_num = None
-          cur_micro = None
-          if issue_num is not None:
-            issue = gh(f"/repos/{repo}/issues/{issue_num}")
-            print(f"[info] Closed issue: {issue.get('title')}")
-            parsed = parse_rfc_micro(issue.get('title'))
-            if parsed:
-              rfc_num, cur_micro = parsed
-          if rfc_num is None:
-            parsed = parse_rfc_micro(pr_title)
-            if parsed:
-              rfc_num, cur_micro = parsed
-
-          if rfc_num is None or cur_micro is None:
-            print('[warn] Could not determine RFC/micro from context; exiting gracefully.')
-            sys.exit(0)
-
-          next_micro = cur_micro + 1
-          search_q = f"repo:{repo} is:issue is:open in:title \"Game-RFC-{rfc_num}-{next_micro}:\""
-          search = gh(f"/search/issues?q={urllib.parse.quote(search_q)}")
-          items = search.get('items', [])
-          if not items:
-            print(f"[info] No next micro-issue found for Game-RFC-{rfc_num}-{next_micro}")
-            sys.exit(0)
-
-          next_issue_num = items[0]['number']
-          print(f"[info] Next micro-issue found: #{next_issue_num}")
-
-          # Try to assign to Copilot; attempt both possible usernames
-          def add_assignee(user):
-            try:
-              gh(f"/repos/{repo}/issues/{next_issue_num}/assignees", method='POST', data={'assignees':[user]})
-              return True
-            except Exception as e:
-              return False
-
-          assigned = add_assignee('copilot-swe-agent') or add_assignee('Copilot')
-          print(f"[info] Assigned: {assigned}")
-
-          # Leave a progression comment
-          body_lines = [
-            "**Auto-assigned from micro-issue progression**",
-            "",
-            f"Previous task completed: Game-RFC-{rfc_num}-{cur_micro}",
-            f"Next sequential task: Game-RFC-{rfc_num}-{next_micro}",
-          ]
-          gh(f"/repos/{repo}/issues/{next_issue_num}/comments", method='POST', data={'body':'\n'.join(body_lines)})
-          print('[info] Progression comment added.')
-          PY
+          python .github/scripts/assign_next_micro_issue.py
