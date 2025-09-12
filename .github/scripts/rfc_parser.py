@@ -69,6 +69,12 @@ class RFCParser:
         implementation_sections = []
         
         for section in sections:
+            # Include Game-RFC micro-issue sections (pattern: Game-RFC-XXX-N: Title)
+            import re
+            if re.match(r'Game-RFC-\d+-\d+:', section.title):
+                implementation_sections.append(section)
+                continue
+            
             # Look for implementation keywords
             impl_keywords = [
                 'object model', 'class', 'system', 'implementation', 
@@ -130,13 +136,22 @@ class RFCParser:
     def generate_micro_issues(self, rfc_number: str) -> List[MicroIssueTemplate]:
         """Generate micro-issues from RFC structure"""
         sections = self.parse_structure()
-        impl_sections = self.identify_implementation_sections(sections)
+        
+        # For Game-RFC documents, only include actual micro-issue sections
+        if rfc_number.startswith('Game-RFC-'):
+            import re
+            impl_sections = [s for s in sections if re.match(r'Game-RFC-\d+-\d+:', s.title)]
+        else:
+            impl_sections = self.identify_implementation_sections(sections)
         
         micro_issues = []
         
         for i, section in enumerate(impl_sections, 1):
-            # Generate title
-            title = f"{rfc_number}-{i}: {section.title}"
+            # Generate title - use section title directly for Game-RFC
+            if rfc_number.startswith('Game-RFC-'):
+                title = section.title
+            else:
+                title = f"{rfc_number}-{i}: {section.title}"
             
             # Extract file paths
             files = self.extract_file_paths(section)
