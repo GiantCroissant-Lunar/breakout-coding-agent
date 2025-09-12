@@ -46,22 +46,31 @@ def find_closed_issue(pr_number, repo):
     
     print(f"PR Title: {pr_title}")
     
+    # Early exit if PR is not Game-RFC related
+    if not ('Game-RFC-' in pr_title or 'Game-RFC-' in pr_body):
+        print("❌ PR is not Game-RFC related, skipping")
+        return None
+    
     # Look for issue reference in PR body (Fixes #123, Closes #456, etc.)
     for text in [pr_body, pr_title]:
         if text:
             match = re.search(r'(?:close[sd]?|fixe?[sd]?|resolve[sd]?)\s+#(\d+)', text, re.IGNORECASE)
             if match:
-                return int(match.group(1))
+                issue_num = int(match.group(1))
+                print(f"Found issue reference: #{issue_num}")
+                return issue_num
     
     # Try to find issue by matching Game-RFC pattern in title
     match = re.search(r'Game-RFC-(\d+)-(\d+)', pr_title)
     if match:
         rfc_pattern = f"Game-RFC-{match.group(1)}-{match.group(2)}"
+        print(f"Looking for issue with pattern: {rfc_pattern}")
         # Find issue with this pattern
         issues = run_gh_command(['issue', 'list', '--repo', repo, '--state', 'all', '--json', 'number,title'])
         if issues:
             for issue in issues:
                 if rfc_pattern in issue.get('title', ''):
+                    print(f"Found matching issue: #{issue['number']}")
                     return issue['number']
     
     return None
@@ -271,6 +280,7 @@ def main():
     closed_issue = find_closed_issue(pr_number, repo)
     if not closed_issue:
         print("❌ Could not determine which issue was closed by this PR")
+        print("ℹ️ This might be a non-Game-RFC PR or missing issue reference")
         sys.exit(0)
     
     print(f"✅ Found closed issue: #{closed_issue}")
