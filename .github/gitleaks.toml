@@ -1,7 +1,9 @@
 [allowlist]
-description = "Allowlist for non-sensitive caveat logs"
+description = "Allowlist for non-sensitive caveat logs and chat history"
 paths = [
   # Allow caveat message drops in repo root
-  "^2025-.*-caveat-the-messages-.*\\.txt$"
+  "^2025-.*-caveat-the-messages-.*\\.txt$",
+  # Allow chat history files in docs directory
+  "^docs/chat-history/.*\\.txt$"
 ]
 
