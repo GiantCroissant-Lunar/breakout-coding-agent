@@ -117,37 +117,101 @@ def find_next_micro_issue(rfc_num, next_micro, repo):
 
 
 def assign_issue(issue_number, repo):
-    """Assign issue to Copilot using simple CLI, with fallbacks.
+    """Assign issue to Copilot via GraphQL addAssigneesToAssignable, per docs.
 
-    Tries, in order:
-      1) gh issue edit --add-assignee copilot-swe-agent
-      2) gh issue edit --add-assignee Copilot
-      3) REST: POST /issues/{n}/assignees with either username
+    Finds the issue node id and the Copilot assignee id from assignableUsers,
+    then adds Copilot as an assignee using GraphQL.
     """
-    def try_assign(user: str) -> bool:
-        try:
-            subprocess.run([
-                'gh','issue','edit',str(issue_number),'--repo',repo,'--add-assignee',user
-            ], capture_output=True, text=True, check=True)
-            print(f"Assigned via CLI to {user}")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"CLI assign failed for {user}: {e.stderr}")
-            # Try REST
-            try:
-                payload = json.dumps({'assignees':[user]})
-                result = subprocess.run([
-                    'gh','api','-X','POST',f'/repos/{repo}/issues/{issue_number}/assignees',
-                    '-H','Accept: application/vnd.github+json',
-                    '--input','-'
-                ], input=payload, capture_output=True, text=True, check=True)
-                print(f"Assigned via REST to {user}")
-                return True
-            except subprocess.CalledProcessError as e2:
-                print(f"REST assign failed for {user}: {e2.stderr}")
-                return False
+    # Resolve issue node id
+    issue = run_gh_command(['issue', 'view', str(issue_number), '--repo', repo, '--json', 'id'])
+    if not issue or 'id' not in issue:
+        print(f"Failed to resolve issue node id for #{issue_number}")
+        return False
+    assignable_id = issue['id']
+    print(f"Issue node id: {assignable_id}")
 
-    return try_assign('copilot-swe-agent') or try_assign('Copilot')
+    # Resolve Copilot id from assignableUsers
+    try:
+        owner, name = repo.split('/')
+    except ValueError:
+        print(f"Invalid repo format: {repo}")
+        return False
+
+    # Query assignable users for 'Copilot' and 'copilot'
+    query = f'''
+    query {{
+      repository(owner: "{owner}", name: "{name}") {{
+        assignableUsers(first: 50, query: "copilot") {{
+          nodes {{ __typename login id }}
+        }}
+      }}
+    }}
+    '''
+    try:
+        result = subprocess.run(
+            ['gh','api','graphql','-f',f'query={query}'],
+            capture_output=True, text=True, check=True
+        )
+        data = json.loads(result.stdout)
+        nodes = (
+            data.get('data', {})
+                .get('repository', {})
+                .get('assignableUsers', {})
+                .get('nodes', [])
+        )
+        copilot_id = None
+        for n in nodes:
+            if n.get('login') in ('Copilot','copilot-swe-agent'):
+                copilot_id = n.get('id')
+                print(f"Copilot login={n.get('login')} id={copilot_id}")
+                break
+        if not copilot_id and nodes:
+            # Fallback: take the first candidate that looks like Copilot
+            for n in nodes:
+                if 'copilot' in (n.get('login','').lower()):
+                    copilot_id = n.get('id')
+                    print(f"Fallback Copilot id={copilot_id} from login={n.get('login')}")
+                    break
+        if not copilot_id:
+            print("Could not locate Copilot in assignableUsers; ensure Copilot is enabled for this repo.")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"GraphQL assignableUsers query failed: {e.stderr}")
+        return False
+    except json.JSONDecodeError:
+        print("Invalid JSON from assignableUsers query")
+        return False
+
+    # Perform addAssigneesToAssignable mutation
+    mutation = (
+        "mutation($assignableId:ID!,$assigneeIds:[ID!]!){"
+        " addAssigneesToAssignable(input:{assignableId:$assignableId,assigneeIds:$assigneeIds}){"
+        "  assignable{... on Issue{ number assignees(first:10){nodes{login}} }}"
+        " } }"
+    )
+    variables = json.dumps({
+        'assignableId': assignable_id,
+        'assigneeIds': [copilot_id],
+    })
+    try:
+        result = subprocess.run(
+            ['gh','api','graphql','-f',f'query={mutation}','-f',f'variables={variables}'],
+            capture_output=True, text=True, check=True
+        )
+        data = json.loads(result.stdout)
+        ok = data.get('data',{}).get('addAssigneesToAssignable')
+        if ok:
+            assignees = ok['assignable']['assignees']['nodes']
+            print(f"Assigned via GraphQL. Assignees: {[a['login'] for a in assignees]}")
+            return True
+        print(f"GraphQL addAssigneesToAssignable returned no data: {data}")
+        return False
+    except subprocess.CalledProcessError as e:
+        print(f"GraphQL mutation failed: {e.stderr}")
+        return False
+    except json.JSONDecodeError:
+        print("Invalid JSON from mutation")
+        return False
 
 def add_progression_comment(issue_number, repo, prev_issue, rfc_num, current_micro, next_micro, pr_number):
     """Add progression comment to the newly assigned issue"""
