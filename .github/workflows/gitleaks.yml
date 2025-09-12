@@ -36,11 +36,13 @@ jobs:
 
       - name: Upload SARIF to Code Scanning
         uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('gitleaks.sarif') != ''
         with:
           sarif_file: gitleaks.sarif
 
       - name: Keep artifact (redacted)
         uses: actions/upload-artifact@v4
+        if: always() && hashFiles('gitleaks.sarif') != ''
         with:
           name: gitleaks-sarif
           path: gitleaks.sarif
