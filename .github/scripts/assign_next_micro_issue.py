@@ -130,61 +130,51 @@ def assign_issue(issue_number, repo):
     assignable_id = issue['id']
     print(f"Issue node id: {assignable_id}")
 
-    # Resolve Copilot id from assignableUsers
-    desired_login = os.environ.get('ASSIGNEE_LOGIN', 'copilot-swe-agent')
+    # Resolve Copilot id using suggestedActors (per official docs)
     try:
         owner, name = repo.split('/')
     except ValueError:
         print(f"Invalid repo format: {repo}")
         return False
 
-    def query_assignable(query_text: str):
-        q = f'''
-        query {{
-          repository(owner: "{owner}", name: "{name}") {{
-            assignableUsers(first: 100, query: "{query_text}") {{
-              nodes {{ __typename login id }}
-            }}
+    # Query suggestedActors for the issue to find available assignees including Copilot
+    q = f'''
+    query {{
+      node(id: "{assignable_id}") {{
+        ... on Issue {{
+          suggestedActors: assignableUsers(first: 100) {{
+            nodes {{ __typename login id }}
           }}
         }}
-        '''
-        res = subprocess.run(
+      }}
+    }}
+    '''
+    
+    try:
+        result = subprocess.run(
             ['gh','api','graphql','-f',f'query={q}'],
             capture_output=True, text=True, check=True
         )
-        d = json.loads(res.stdout)
-        return (
-            d.get('data', {})
-             .get('repository', {})
-             .get('assignableUsers', {})
+        data = json.loads(result.stdout)
+        suggested_actors = (
+            data.get('data', {})
+             .get('node', {})
+             .get('suggestedActors', {})
              .get('nodes', [])
         )
-
-    try:
+        
         copilot_id = None
-        # 1) Exact desired login
-        nodes = query_assignable(desired_login)
-        for n in nodes:
-            if n.get('login') == desired_login:
-                copilot_id = n.get('id')
-                print(f"Found desired assignee login={n.get('login')} id={copilot_id}")
+        # Look for Copilot in suggested actors
+        for actor in suggested_actors:
+            login = actor.get('login', '')
+            if login in ['Copilot', 'copilot-swe-agent', 'github-copilot']:
+                copilot_id = actor.get('id')
+                print(f"Found Copilot in suggestedActors: login={login} id={copilot_id}")
                 break
-        # 2) Fallback broad query "copilot" (prefer copilot-swe-agent if present)
+        
         if not copilot_id:
-            nodes = query_assignable('copilot')
-            for n in nodes:
-                if n.get('login') == 'copilot-swe-agent':
-                    copilot_id = n.get('id')
-                    print(f"Found copilot-swe-agent id={copilot_id}")
-                    break
-            if not copilot_id:
-                for n in nodes:
-                    if n.get('login') == 'Copilot':
-                        copilot_id = n.get('id')
-                        print(f"Found Copilot id={copilot_id}")
-                        break
-        if not copilot_id:
-            print("Could not locate Copilot in assignableUsers; ensure Copilot is enabled for this repo.")
+            print(f"Could not locate Copilot in suggestedActors. Available actors: {[a.get('login') for a in suggested_actors]}")
+            print("Ensure Copilot coding agent is enabled for this repository.")
             return False
     except subprocess.CalledProcessError as e:
         print(f"GraphQL assignableUsers query failed: {e.stderr}")
@@ -193,16 +183,16 @@ def assign_issue(issue_number, repo):
         print("Invalid JSON from assignableUsers query")
         return False
 
-    # Perform addAssigneesToAssignable mutation
+    # Perform replaceActorsForAssignable mutation (per official docs)
     mutation = (
-        "mutation($assignableId:ID!,$assigneeIds:[ID!]!){"
-        " addAssigneesToAssignable(input:{assignableId:$assignableId,assigneeIds:$assigneeIds}){"
+        "mutation($assignableId:ID!,$actorIds:[ID!]!){"
+        " replaceActorsForAssignable(input:{assignableId:$assignableId,actorIds:$actorIds}){"
         "  assignable{... on Issue{ number assignees(first:10){nodes{login}} }}"
         " } }"
     )
     variables = json.dumps({
         'assignableId': assignable_id,
-        'assigneeIds': [copilot_id],
+        'actorIds': [copilot_id],
     })
     try:
         result = subprocess.run(
@@ -210,12 +200,12 @@ def assign_issue(issue_number, repo):
             capture_output=True, text=True, check=True
         )
         data = json.loads(result.stdout)
-        ok = data.get('data',{}).get('addAssigneesToAssignable')
+        ok = data.get('data',{}).get('replaceActorsForAssignable')
         if ok:
             assignees = ok['assignable']['assignees']['nodes']
             print(f"Assigned via GraphQL. Assignees: {[a['login'] for a in assignees]}")
             return True
-        print(f"GraphQL addAssigneesToAssignable returned no data: {data}")
+        print(f"GraphQL replaceActorsForAssignable returned no data: {data}")
         return False
     except subprocess.CalledProcessError as e:
         print(f"GraphQL mutation failed: {e.stderr}")
