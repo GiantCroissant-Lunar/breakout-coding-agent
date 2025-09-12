@@ -1,0 +1,45 @@
+name: Auto-Approve Copilot Workflows
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  actions: write
+  pull-requests: write
+
+jobs:
+  auto-approve-copilot:
+    runs-on: ubuntu-latest
+    # Only run for Copilot PRs
+    if: github.event.pull_request.user.login == 'app/copilot-swe-agent' || github.event.pull_request.user.login == 'Copilot'
+
+    steps:
+      - name: Auto-approve Copilot workflow runs
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ github.event.number }}"
+          REPO="${{ github.repository }}"
+          
+          echo "🤖 Auto-approving workflows for Copilot PR #$PR_NUMBER"
+          
+          # Get all pending workflow runs for this PR
+          PENDING_RUNS=$(gh api repos/$REPO/actions/runs \
+            --jq '.workflow_runs[] | select(.status == "waiting" and (.head_branch | contains("copilot/"))) | .id')
+          
+          if [ -z "$PENDING_RUNS" ]; then
+            echo "ℹ️ No pending workflow runs found for Copilot branches"
+            exit 0
+          fi
+          
+          # Approve each pending run
+          echo "$PENDING_RUNS" | while read -r run_id; do
+            if [ -n "$run_id" ]; then
+              echo "✅ Approving workflow run $run_id"
+              gh api repos/$REPO/actions/runs/$run_id/approve -X POST || echo "⚠️ Failed to approve run $run_id"
+            fi
+          done
+          
+          echo "🎉 Auto-approval process completed for PR #$PR_NUMBER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

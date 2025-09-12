@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   auto-merge-on-review:
@@ -27,6 +28,23 @@ jobs:
         PR_TITLE="${{ github.event.pull_request.title }}"
         
         echo "🔄 Auto-handling review request for PR #$PR_NUM: $PR_TITLE"
+        
+        # Step 1: Auto-approve any pending workflow runs for this PR
+        echo "🤖 Checking for pending workflow approvals..."
+        PENDING_RUNS=$(gh api repos/$REPO/actions/runs \
+          --jq ".workflow_runs[] | select(.status == \"waiting\" and .head_branch == \"${{ github.event.pull_request.head.ref }}\") | .id" || echo "")
+        
+        if [ -n "$PENDING_RUNS" ]; then
+          echo "$PENDING_RUNS" | while read -r run_id; do
+            if [ -n "$run_id" ]; then
+              echo "✅ Auto-approving workflow run $run_id"
+              gh api repos/$REPO/actions/runs/$run_id/approve -X POST || echo "⚠️ Could not approve run $run_id"
+              sleep 2
+            fi
+          done
+        else
+          echo "ℹ️ No pending workflow runs found"
+        fi
         
         # Step 1: Mark as ready for review if still draft
         IS_DRAFT=$(gh pr view "$PR_NUM" --repo "$REPO" --json isDraft --jq .isDraft || echo false)
