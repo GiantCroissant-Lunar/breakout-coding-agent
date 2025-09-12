@@ -25,14 +25,10 @@ jobs:
         env:
           # Required for organization-owned repos. Set in repo/org secrets.
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          # Required for pull request scanning
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: >
-            detect
-            --redact
-            --verbose
-            --report-format sarif
-            --report-path gitleaks.sarif
-            --config .github/gitleaks.toml
+          args: detect --redact --verbose --report-format sarif --report-path gitleaks.sarif --config .github/gitleaks.toml
 
       - name: Upload SARIF to Code Scanning
         uses: github/codeql-action/upload-sarif@v3
