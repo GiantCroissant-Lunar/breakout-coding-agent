@@ -137,14 +137,12 @@ def assign_issue(issue_number, repo):
         print(f"Invalid repo format: {repo}")
         return False
 
-    # Query suggestedActors for the issue to find available assignees including Copilot
+    # Query assignableUsers from repository to find Copilot
     q = f'''
     query {{
-      node(id: "{assignable_id}") {{
-        ... on Issue {{
-          suggestedActors: assignableUsers(first: 100) {{
-            nodes {{ __typename login id }}
-          }}
+      repository(owner: "{owner}", name: "{name}") {{
+        assignableUsers(first: 100) {{
+          nodes {{ __typename login id }}
         }}
       }}
     }}
@@ -156,24 +154,24 @@ def assign_issue(issue_number, repo):
             capture_output=True, text=True, check=True
         )
         data = json.loads(result.stdout)
-        suggested_actors = (
+        assignable_users = (
             data.get('data', {})
-             .get('node', {})
-             .get('suggestedActors', {})
+             .get('repository', {})
+             .get('assignableUsers', {})
              .get('nodes', [])
         )
         
         copilot_id = None
-        # Look for Copilot in suggested actors
-        for actor in suggested_actors:
-            login = actor.get('login', '')
+        # Look for Copilot in assignable users
+        for user in assignable_users:
+            login = user.get('login', '')
             if login in ['Copilot', 'copilot-swe-agent', 'github-copilot']:
-                copilot_id = actor.get('id')
-                print(f"Found Copilot in suggestedActors: login={login} id={copilot_id}")
+                copilot_id = user.get('id')
+                print(f"Found Copilot in assignableUsers: login={login} id={copilot_id}")
                 break
         
         if not copilot_id:
-            print(f"Could not locate Copilot in suggestedActors. Available actors: {[a.get('login') for a in suggested_actors]}")
+            print(f"Could not locate Copilot in assignableUsers. Available users: {[u.get('login') for u in assignable_users]}")
             print("Ensure Copilot coding agent is enabled for this repository.")
             return False
     except subprocess.CalledProcessError as e:
