@@ -26,6 +26,11 @@ public enum GameState
     GameOver,
     
     /// <summary>
+    /// Game won state - all bricks destroyed
+    /// </summary>
+    Won,
+    
+    /// <summary>
     /// Game is exiting
     /// </summary>
     Exiting

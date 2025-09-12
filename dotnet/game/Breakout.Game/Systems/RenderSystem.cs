@@ -43,7 +43,11 @@ public static class RenderSystem
     /// <param name="gameState">Current game state</param>
     public static void RenderFrame(GameState gameState)
     {
-        Clear();
+        // Only clear screen for non-playing states
+        if (gameState != GameState.Playing)
+        {
+            Clear();
+        }
         
         switch (gameState)
         {
@@ -58,6 +62,9 @@ public static class RenderSystem
                 break;
             case GameState.GameOver:
                 RenderGameOver();
+                break;
+            case GameState.Won:
+                RenderWon();
                 break;
             case GameState.Exiting:
                 RenderExiting();
@@ -111,6 +118,19 @@ public static class RenderSystem
     {
         Console.SetCursorPosition(30, 10);
         Console.WriteLine("💀 GAME OVER 💀");
+        Console.SetCursorPosition(25, 12);
+        Console.WriteLine("Press SPACE to restart");
+        Console.SetCursorPosition(25, 14);
+        Console.WriteLine("Press ESC to exit");
+    }
+    
+    /// <summary>
+    /// Renders the game won state
+    /// </summary>
+    private static void RenderWon()
+    {
+        Console.SetCursorPosition(30, 10);
+        Console.WriteLine("🎉 YOU WON! 🎉");
         Console.SetCursorPosition(25, 12);
         Console.WriteLine("Press SPACE to restart");
         Console.SetCursorPosition(25, 14);
@@ -190,5 +210,42 @@ public static class RenderSystem
         
         Console.SetCursorPosition(paddle.X, paddle.Y);
         Console.Write(new string(' ', paddle.Width));
+    }
+    
+    /// <summary>
+    /// Draws all active bricks in the layout
+    /// </summary>
+    /// <param name="bricks">List of bricks to draw</param>
+    public static void DrawBricks(List<Brick> bricks)
+    {
+        foreach (var brick in bricks.Where(b => !b.IsDestroyed))
+        {
+            Console.SetCursorPosition(brick.X, brick.Y);
+            Console.ForegroundColor = brick.Color;
+            Console.Write(new string(brick.Character, brick.Width));
+        }
+        Console.ResetColor();
+    }
+    
+    /// <summary>
+    /// Clears a specific brick from the screen
+    /// </summary>
+    /// <param name="brick">Brick to clear</param>
+    public static void ClearBrick(Brick brick)
+    {
+        Console.SetCursorPosition(brick.X, brick.Y);
+        Console.Write(new string(' ', brick.Width));
+    }
+    
+    /// <summary>
+    /// Draws the score information
+    /// </summary>
+    /// <param name="scoreSystem">Score system to display</param>
+    public static void DrawScore(ScoreSystem scoreSystem)
+    {
+        Console.SetCursorPosition(2, 1);
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.Write(scoreSystem.GetScoreText());
+        Console.ResetColor();
     }
 }

@@ -25,6 +25,16 @@ public class Game
     public Paddle Paddle { get; set; }
     
     /// <summary>
+    /// Brick layout and management
+    /// </summary>
+    public BrickLayout BrickLayout { get; set; }
+    
+    /// <summary>
+    /// Score tracking system
+    /// </summary>
+    public ScoreSystem ScoreSystem { get; set; }
+    
+    /// <summary>
     /// Whether the game is running
     /// </summary>
     public bool IsRunning { get; private set; }
@@ -45,6 +55,8 @@ public class Game
         // Initialize game objects
         Ball = new Ball();
         Paddle = new Paddle();
+        BrickLayout = new BrickLayout();
+        ScoreSystem = new ScoreSystem();
         InitializeGameObjects();
     }
     
@@ -67,6 +79,12 @@ public class Game
         
         // Initialize paddle
         PaddleSystem.InitializePaddle(Paddle);
+        
+        // Initialize brick layout
+        BrickLayout.GenerateStandardLayout();
+        
+        // Reset score system
+        ScoreSystem.Reset();
     }
     
     /// <summary>
@@ -110,7 +128,8 @@ public class Game
                 if (InputSystem.IsSpacePressed(key))
                 {
                     State = GameState.Playing;
-                    // Reset game objects when starting new game
+                    // Clear screen and reset game objects when starting new game
+                    Console.Clear();
                     InitializeGameObjects();
                 }
                 break;
@@ -139,6 +158,13 @@ public class Game
                 break;
                 
             case GameState.GameOver:
+                if (InputSystem.IsSpacePressed(key))
+                {
+                    State = GameState.Menu; // Restart to menu
+                }
+                break;
+                
+            case GameState.Won:
                 if (InputSystem.IsSpacePressed(key))
                 {
                     State = GameState.Menu; // Restart to menu
@@ -176,6 +202,21 @@ public class Game
                 // Update ball physics
                 BallSystem.Update(Ball, Paddle);
                 
+                // Check brick collisions
+                var hitBrick = BrickSystem.CheckBrickCollisions(Ball, BrickLayout.Bricks);
+                if (hitBrick != null)
+                {
+                    BrickSystem.HandleBrickCollision(Ball, hitBrick, ScoreSystem);
+                    // Clear the destroyed brick immediately
+                    RenderSystem.ClearBrick(hitBrick);
+                }
+                
+                // Check win condition
+                if (BrickSystem.CheckWinCondition(BrickLayout))
+                {
+                    State = GameState.Won;
+                }
+                
                 // Check if ball was lost
                 if (!Ball.IsActive)
                 {
@@ -200,6 +241,10 @@ public class Game
             case GameState.GameOver:
                 // Game over logic (none needed currently)
                 break;
+                
+            case GameState.Won:
+                // Game won logic (none needed currently)
+                break;
         }
     }
     
@@ -213,8 +258,10 @@ public class Game
         // Render game objects during gameplay
         if (State == GameState.Playing)
         {
+            RenderSystem.DrawBricks(BrickLayout.Bricks);
             RenderSystem.DrawPaddle(Paddle);
             RenderSystem.DrawBall(Ball);
+            RenderSystem.DrawScore(ScoreSystem);
         }
     }
     
