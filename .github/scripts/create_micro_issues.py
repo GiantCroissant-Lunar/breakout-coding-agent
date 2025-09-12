@@ -10,6 +10,7 @@ import json
 import subprocess
 import re
 import glob
+import tempfile
 from typing import Dict, List, Optional, NamedTuple
 from pathlib import Path
 import logging
@@ -30,18 +31,34 @@ class GitHubAPI:
     def run_graphql_query(self, query: str, variables: Dict = None) -> Optional[Dict]:
         """Execute GraphQL query via gh CLI"""
         try:
-            cmd = ['gh', 'api', 'graphql', '-f', f'query={query}']
+            # Create the GraphQL payload
+            payload = {"query": query}
             if variables:
-                for key, value in variables.items():
-                    cmd.extend(['-f', f'{key}={value}'])
-                    
-            env = os.environ.copy()
-            env['GH_TOKEN'] = self.gh_token
+                payload["variables"] = variables
             
-            result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=True)
-            return json.loads(result.stdout)
+            # Write payload to temporary file
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(payload, f, indent=2)
+                payload_file = f.name
+            
+            try:
+                # Use gh api with JSON input
+                cmd = ['gh', 'api', 'graphql', '--input', payload_file]
+                
+                env = os.environ.copy()
+                env['GH_TOKEN'] = self.gh_token
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=True)
+                return json.loads(result.stdout)
+            finally:
+                # Clean up temp file
+                os.unlink(payload_file)
+                
         except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
             logger.error(f"GraphQL query failed: {e}")
+            if hasattr(e, 'stderr') and e.stderr:
+                logger.error(f"Error details: {e.stderr}")
             return None
     
     def get_repository_id(self, owner: str, name: str) -> Optional[str]:
@@ -86,37 +103,49 @@ class GitHubAPI:
         return None
     
     def create_issue(self, repo_id: str, title: str, body: str, assignee_ids: List[str] = None) -> Optional[str]:
-        """Create an issue using gh CLI (more reliable than GraphQL)"""
+        """Create issue with optional assignee using GraphQL"""
         assignee_ids = assignee_ids or []
         
-        try:
-            # Create basic command
-            cmd = ['gh', 'issue', 'create', '--title', title, '--body', body]
-            
-            # Add labels 
-            cmd.extend(['--label', 'game-rfc'])
-            
-            # Note: Skip assignment for now - we can assign manually later
-            # The GraphQL assignment was causing failures
-            
-            # Run command
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            
-            # Extract issue number from URL (format: https://github.com/owner/repo/issues/N)
-            issue_url = result.stdout.strip()
-            issue_number = issue_url.split('/')[-1]
-            
-            logger.info(f"✅ Created issue #{issue_number}: {title}")
-            logger.info(f"   URL: {issue_url}")
-            
-            # TODO: Add assignment later if needed
-            # if assignee_ids:
-            #     logger.info(f"   Note: Manual assignment needed for Copilot Bot")
-                
-            return issue_number
-            
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to create issue: {e.stderr}")
+        mutation = """
+        mutation($repositoryId: ID!, $title: String!, $body: String!, $assigneeIds: [ID!], $labelIds: [ID!]) {
+          createIssue(input: {
+            repositoryId: $repositoryId,
+            title: $title,
+            body: $body,
+            assigneeIds: $assigneeIds,
+            labelIds: $labelIds
+          }) {
+            issue {
+              number
+              assignees(first: 10) {
+                nodes {
+                  login
+                }
+              }
+            }
+          }
+        }
+        """
+        
+        variables = {
+            'repositoryId': repo_id,
+            'title': title,
+            'body': body,
+            'assigneeIds': assignee_ids,
+            'labelIds': []  # We'll skip labels for now to simplify
+        }
+        
+        result = self.run_graphql_query(mutation, variables)
+        if result and 'data' in result and result['data']['createIssue']:
+            issue_data = result['data']['createIssue']['issue']
+            assignees = [node['login'] for node in issue_data['assignees']['nodes']]
+            logger.info(f"✅ Created issue #{issue_data['number']}: {title}")
+            if assignees:
+                logger.info(f"   Assigned to: {', '.join(assignees)}")
+            return str(issue_data['number'])
+        else:
+            if result and 'errors' in result:
+                logger.error(f"GraphQL errors: {result['errors']}")
             return None
 
 # Import RFC parser functions
