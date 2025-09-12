@@ -1,9 +1,10 @@
 name: Auto Merge RFC PRs
 
-on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
-    branches: [main]
+# DISABLED: Let Copilot handle end-to-end development without auto-merge
+# on:
+#   pull_request_target:
+#     types: [opened, synchronize, reopened, ready_for_review, edited]
+#     branches: [main]
 
 permissions:
   contents: write
