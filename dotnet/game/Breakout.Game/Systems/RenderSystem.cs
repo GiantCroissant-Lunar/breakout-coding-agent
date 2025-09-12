@@ -109,6 +109,11 @@ public static class RenderSystem
         Console.SetCursorPosition(15, 1);
         Console.Write(scoreSystem.GetBricksDestroyedDisplay());
         
+        // Draw lives counter on the right side
+        Console.SetCursorPosition(50, 1);
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Write(scoreSystem.GetLivesDisplay());
+        
         Console.ResetColor();
     }
     
