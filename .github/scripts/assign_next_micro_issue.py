@@ -172,8 +172,10 @@ def assign_issue(issue_number, repo):
         
         if not copilot_id:
             print(f"Could not locate Copilot in assignableUsers. Available users: {[u.get('login') for u in assignable_users]}")
-            print("Ensure Copilot coding agent is enabled for this repository.")
-            return False
+            print("Trying known Copilot ID from existing assignments...")
+            # Use known Copilot ID from issues #60-62: BOT_kgDOC9w8XQ
+            copilot_id = "BOT_kgDOC9w8XQ"
+            print(f"Using hardcoded Copilot ID: {copilot_id}")
     except subprocess.CalledProcessError as e:
         print(f"GraphQL assignableUsers query failed: {e.stderr}")
         return False
