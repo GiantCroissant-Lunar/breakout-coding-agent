@@ -1,0 +1,7 @@
+[allowlist]
+description = "Allowlist for non-sensitive caveat logs"
+paths = [
+  # Allow caveat message drops in repo root
+  "^2025-.*-caveat-the-messages-.*\\.txt$"
+]
+
