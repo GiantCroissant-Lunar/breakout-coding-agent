@@ -49,14 +49,12 @@ public class BrickLayout
     {
         Bricks.Clear();
         
-        int brickWidth = BrickConstants.DefaultWidth;
-        int brickHeight = BrickConstants.DefaultHeight;
-        int spacingX = BrickConstants.SpacingX;
-        int spacingY = BrickConstants.SpacingY;
+        int brickWidth = 6;
+        int brickHeight = 1;
+        int spacing = 1;
+        int totalWidth = (brickWidth + spacing) * Columns - spacing;
         
-        // Calculate total width and center the layout
-        int totalWidth = (brickWidth + spacingX) * Columns - spacingX;
-        StartX = (Constants.CONSOLE_WIDTH - totalWidth) / 2;
+        StartX = (Console.WindowWidth - totalWidth) / 2;
         StartY = 3; // Below top boundary
         
         for (int row = 0; row < Rows; row++)
@@ -65,13 +63,13 @@ public class BrickLayout
             {
                 var brick = new Brick
                 {
-                    X = StartX + col * (brickWidth + spacingX),
-                    Y = StartY + row * (brickHeight + spacingY),
+                    X = StartX + col * (brickWidth + spacing),
+                    Y = StartY + row * (brickHeight + spacing),
                     Width = brickWidth,
                     Height = brickHeight,
                     IsDestroyed = false,
                     Type = GetBrickTypeForRow(row),
-                    Character = BrickConstants.DefaultCharacter,
+                    Character = '█',
                     Color = GetColorForType(GetBrickTypeForRow(row))
                 };
                 
