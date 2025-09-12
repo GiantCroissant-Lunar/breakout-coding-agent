@@ -20,12 +20,13 @@ on:
 permissions:
   issues: write
   pull-requests: write
+  actions: write
 
 jobs:
   handle-failure:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Handle failed micro-issue
         run: |
