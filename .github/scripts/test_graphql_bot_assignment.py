@@ -15,14 +15,14 @@ from typing import Dict, Any, Optional
 
 
 class GraphQLBotAssignmentTest:
-    def __init__(self):
+    def __init__(self, require_token=True):
         self.github_token = os.environ.get('GITHUB_TOKEN')
         self.repo_owner = 'GiantCroissant-Lunar'
         self.repo_name = 'breakout-coding-agent'
         self.bot_id = 'BOT_kgDOC9w8XQ'  # Copilot Bot ID from issue description
         self.graphql_endpoint = 'https://api.github.com/graphql'
         
-        if not self.github_token:
+        if require_token and not self.github_token:
             raise ValueError("GITHUB_TOKEN environment variable is required")
 
     def run_gh_command(self, cmd: str) -> str:
