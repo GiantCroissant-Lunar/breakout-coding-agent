@@ -19,3 +19,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+# Chat history and conversation exports
+*caveat*.txt
+docs/chat-history/
+*.log
