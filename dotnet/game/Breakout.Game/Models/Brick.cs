@@ -1,3 +1,5 @@
+using Breakout.Game.Utilities;
+
 namespace Breakout.Game.Models;
 
 /// <summary>
@@ -88,10 +90,10 @@ public class Brick
     {
         return Type switch
         {
-            BrickType.Standard => 10,
-            BrickType.Strong => 20,
-            BrickType.Bonus => 50,
-            _ => 10
+            BrickType.Standard => BrickConstants.StandardPoints,
+            BrickType.Strong => BrickConstants.StrongPoints,
+            BrickType.Bonus => BrickConstants.BonusPoints,
+            _ => BrickConstants.StandardPoints
         };
     }
 }
