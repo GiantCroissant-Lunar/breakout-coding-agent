@@ -32,7 +32,7 @@ jobs:
           # Calculate lookback timestamp
           LOOKBACK_TIME=$(date -u -d "${LOOKBACK_HOURS} hours ago" -Iseconds)
           
-          echo "🔍 Scanning for failed Copilot workflow runs since ${LOOKBACK_TIME}..."
+          echo "[INFO] Scanning for failed Copilot workflow runs since ${LOOKBACK_TIME}..."
           
           # Get failed Copilot workflow runs
           FAILED_RUNS=$(gh run list --repo "$REPO" \
@@ -42,11 +42,11 @@ jobs:
             --jq '.[] | select(.workflowName == "Copilot") | {id: .id, branch: .headBranch, created: .createdAt}')
           
           if [ -z "$FAILED_RUNS" ] || [ "$FAILED_RUNS" = "[]" ]; then
-            echo "✅ No failed Copilot runs found in the last ${LOOKBACK_HOURS} hours"
+            echo "[SUCCESS] No failed Copilot runs found in the last ${LOOKBACK_HOURS} hours"
             exit 0
           fi
           
-          echo "🚨 Found failed Copilot runs:"
+          echo "[ALERT] Found failed Copilot runs:"
           echo "$FAILED_RUNS" | jq -r '"Run ID: \(.id), Branch: \(.branch), Created: \(.created)"'
           
           # Process each failed run
@@ -59,10 +59,10 @@ jobs:
             BRANCH=$(echo "$run_data" | jq -r '.branch // empty')
             
             echo ""
-            echo "🔧 Processing failed run: $RUN_ID (branch: $BRANCH)"
+            echo "[PROCESS] Processing failed run: $RUN_ID (branch: $BRANCH)"
             
             if [ -z "$BRANCH" ] || [ "$BRANCH" = "null" ]; then
-              echo "⚠️ No branch info for run $RUN_ID, skipping"
+              echo "[WARN] No branch info for run $RUN_ID, skipping"
               continue
             fi
             
@@ -73,18 +73,18 @@ jobs:
             PR_STATE=$(echo "$PR_DATA" | jq -r '.[0].state // empty')
             
             if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
-              echo "⚠️ No PR found for branch $BRANCH"
+              echo "[WARN] No PR found for branch $BRANCH"
               continue
             fi
             
-            echo "📋 Found PR: #$PR_NUMBER - $PR_TITLE (state: $PR_STATE)"
+            echo "[INFO] Found PR: #$PR_NUMBER - $PR_TITLE (state: $PR_STATE)"
             
             # Step 2: Extract issue number from PR title or body
             ISSUE_NUMBER=""
             if [[ "$PR_TITLE" =~ Game-RFC-[0-9]+-([0-9]+) ]]; then
               # Extract from Game-RFC pattern - need to find actual issue
               RFC_PATTERN=$(echo "$PR_TITLE" | grep -o 'Game-RFC-[0-9]\+-[0-9]\+' | head -1)
-              echo "🔍 Looking for issue with pattern: $RFC_PATTERN"
+              echo "[SEARCH] Looking for issue with pattern: $RFC_PATTERN"
               
               ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --json number,title \
                 --jq ".[] | select(.title | contains(\"$RFC_PATTERN\")) | .number" | head -1)
@@ -97,63 +97,63 @@ jobs:
             fi
             
             if [ -z "$ISSUE_NUMBER" ]; then
-              echo "⚠️ Could not determine source issue for PR #$PR_NUMBER"
+              echo "[WARN] Could not determine source issue for PR #$PR_NUMBER"
               continue
             fi
             
-            echo "🎯 Source issue identified: #$ISSUE_NUMBER"
+            echo "[TARGET] Source issue identified: #$ISSUE_NUMBER"
             
             # Step 3: Get issue details
             ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json title,state,assignees)
             ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
             ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
             
-            echo "📝 Issue: #$ISSUE_NUMBER - $ISSUE_TITLE (state: $ISSUE_STATE)"
+            echo "[INFO] Issue: #$ISSUE_NUMBER - $ISSUE_TITLE (state: $ISSUE_STATE)"
             
             # Step 4: Clean up artifacts
-            echo "🧹 Cleaning up failed artifacts..."
+            echo "[CLEANUP] Cleaning up failed artifacts..."
             
             # Close the failed PR
             if [ "$PR_STATE" = "OPEN" ]; then
-              echo "   Closing failed PR #$PR_NUMBER..."
-              gh pr close "$PR_NUMBER" --repo "$REPO" --comment "🤖 Auto-closing failed PR due to workflow failure (Run ID: $RUN_ID). Starting fresh implementation."
+              echo "[ACTION] Closing failed PR #$PR_NUMBER..."
+              gh pr close "$PR_NUMBER" --repo "$REPO" --comment "[AUTO] Closing failed PR due to workflow failure (Run ID: $RUN_ID). Starting fresh implementation."
             fi
             
             # Step 5: Restart the issue
             if [ "$ISSUE_STATE" = "OPEN" ]; then
-              echo "   Restarting issue #$ISSUE_NUMBER..."
+              echo "[RESTART] Restarting issue #$ISSUE_NUMBER..."
               
               # Add comprehensive restart comment
-              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "🔄 **Auto-Restart from Failed Workflow**
+              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "AUTO-RESTART: Failed Workflow Detection
 
-**Failure Detection:**
+Failure Detection:
 - Failed Workflow Run: $RUN_ID
-- Failed Branch: \`$BRANCH\`
+- Failed Branch: $BRANCH
 - Failed PR: #$PR_NUMBER (now closed)
 
-**Root Cause Resolution:**
-- ✅ Firewall configuration updated (api.githubcopilot.com allowed)
-- ✅ Network connectivity issues resolved
-- ✅ Failed artifacts cleaned up
+Root Cause Resolution:
+- Firewall configuration updated (api.githubcopilot.com allowed)
+- Network connectivity issues resolved
+- Failed artifacts cleaned up
 
-**Fresh Implementation Request:**
-This is a clean slate restart. Please re-implement from scratch:
+Fresh Implementation Request:
+This is a clean slate restart. Please re-implement from scratch.
 
-**Issue:** $ISSUE_TITLE
+Issue: $ISSUE_TITLE
 
 The system is now properly configured and ready for successful implementation."
               
-              echo "✅ Issue #$ISSUE_NUMBER restarted successfully"
+              echo "[SUCCESS] Issue #$ISSUE_NUMBER restarted successfully"
             fi
             
-            echo "✅ Completed cleanup for failed run $RUN_ID"
+            echo "[COMPLETE] Completed cleanup for failed run $RUN_ID"
           done
           
           echo ""
-          echo "🎉 Failed Copilot run detection and cleanup completed!"
+          echo "[FINISH] Failed Copilot run detection and cleanup completed!"
 
       - name: Summary
         run: |
-          echo "🔍 Failed Copilot run detection completed"
-          echo "⏰ Lookback period: ${{ github.event.inputs.lookback_hours || '2' }} hours"
-          echo "🔄 Next scheduled check: 15 minutes"
+          echo "[INFO] Failed Copilot run detection completed"
+          echo "[TIME] Lookback period: ${{ github.event.inputs.lookback_hours || '2' }} hours"
+          echo "[SCHEDULE] Next scheduled check: 15 minutes"
