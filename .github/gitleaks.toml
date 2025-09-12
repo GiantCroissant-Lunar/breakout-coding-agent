@@ -1,2 +1,12 @@
 # Gitleaks configuration for breakout-coding-agent
 # Chat history and conversation exports are now excluded via .gitignore
+
+[allowlist]
+description = "Allow GitHub Actions secret references and common patterns"
+regexes = [
+  # GitHub Actions secret syntax
+  '''\$\{\{\s*secrets\.[A-Z_]+\s*\}\}''',
+  # GitHub token patterns in workflows
+  '''GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}''',
+  '''GITHUB_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}''',
+]
