@@ -1,0 +1,17 @@
+name: Debug Condition Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-condition:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug event context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Has PR: ${{ github.event.pull_request != null }}"
+          echo "PR merged: ${{ github.event.pull_request.merged }}"
+          echo "Condition 1: ${{ github.event_name == 'workflow_dispatch' }}"
+          echo "Condition 2: ${{ github.event.pull_request && github.event.pull_request.merged == true }}"
+          echo "Full condition: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request && github.event.pull_request.merged == true) }}"
