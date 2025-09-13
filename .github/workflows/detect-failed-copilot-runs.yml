@@ -2,7 +2,6 @@ name: Detect Failed Copilot Runs
 
 on:
   schedule:
-    # Check for failed Copilot runs every 15 minutes
     - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
@@ -20,140 +19,81 @@ permissions:
 jobs:
   detect-and-cleanup:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Detect failed Copilot workflow runs
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect failed runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           REPO="${{ github.repository }}"
           LOOKBACK_HOURS="${{ github.event.inputs.lookback_hours || '2' }}"
           
-          # Calculate lookback timestamp
-          LOOKBACK_TIME=$(date -u -d "${LOOKBACK_HOURS} hours ago" -Iseconds)
+          echo "Scanning for failed Copilot runs in last ${LOOKBACK_HOURS} hours..."
           
-          echo "[INFO] Scanning for failed Copilot workflow runs since ${LOOKBACK_TIME}..."
+          # Step 1: Find failed workflow runs
+          CUTOFF_TIME=$(date -u -d "${LOOKBACK_HOURS} hours ago" +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Looking for failures since: $CUTOFF_TIME"
           
-          # Get failed Copilot workflow runs
-          FAILED_RUNS=$(gh run list --repo "$REPO" \
-            --status failure \
-            --created ">=${LOOKBACK_TIME}" \
-            --json workflowName,id,headBranch,conclusion,createdAt \
-            --jq '.[] | select(.workflowName == "Copilot") | {id: .id, branch: .headBranch, created: .createdAt}')
+          # Get failed workflow runs that might be Copilot-related
+          FAILED_RUNS=$(gh run list --repo "$REPO" --status failure --limit 20 --json databaseId,headBranch,conclusion,createdAt --jq "
+            [.[] | select(.createdAt > \"$CUTOFF_TIME\" and .conclusion == \"failure\")] | 
+            map({id: .databaseId, branch: .headBranch})
+          ")
           
-          if [ -z "$FAILED_RUNS" ] || [ "$FAILED_RUNS" = "[]" ]; then
-            echo "[SUCCESS] No failed Copilot runs found in the last ${LOOKBACK_HOURS} hours"
+          echo "Found failed runs: $FAILED_RUNS"
+          
+          if [[ "$FAILED_RUNS" == "[]" ]]; then
+            echo "No failed workflow runs found in the last ${LOOKBACK_HOURS} hours"
             exit 0
           fi
           
-          echo "[ALERT] Found failed Copilot runs:"
-          echo "$FAILED_RUNS" | jq -r '"Run ID: \(.id), Branch: \(.branch), Created: \(.created)"'
-          
-          # Process each failed run
-          echo "$FAILED_RUNS" | jq -c '.[]?' | while read -r run_data; do
-            if [ -z "$run_data" ] || [ "$run_data" = "null" ]; then
-              continue
-            fi
-            
-            RUN_ID=$(echo "$run_data" | jq -r '.id')
-            BRANCH=$(echo "$run_data" | jq -r '.branch // empty')
-            
-            echo ""
-            echo "[PROCESS] Processing failed run: $RUN_ID (branch: $BRANCH)"
-            
-            if [ -z "$BRANCH" ] || [ "$BRANCH" = "null" ]; then
-              echo "[WARN] No branch info for run $RUN_ID, skipping"
-              continue
-            fi
-            
-            # Step 1: Find associated PR
-            PR_DATA=$(gh pr list --repo "$REPO" --head "$BRANCH" --json number,title,state --limit 1)
-            PR_NUMBER=$(echo "$PR_DATA" | jq -r '.[0].number // empty')
-            PR_TITLE=$(echo "$PR_DATA" | jq -r '.[0].title // empty')
-            PR_STATE=$(echo "$PR_DATA" | jq -r '.[0].state // empty')
-            
-            if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
-              echo "[WARN] No PR found for branch $BRANCH"
-              continue
-            fi
-            
-            echo "[INFO] Found PR: #$PR_NUMBER - $PR_TITLE (state: $PR_STATE)"
-            
-            # Step 2: Extract issue number from PR title or body
-            ISSUE_NUMBER=""
-            if [[ "$PR_TITLE" =~ Game-RFC-[0-9]+-([0-9]+) ]]; then
-              # Extract from Game-RFC pattern - need to find actual issue
-              RFC_PATTERN=$(echo "$PR_TITLE" | grep -o 'Game-RFC-[0-9]\+-[0-9]\+' | head -1)
-              echo "[SEARCH] Looking for issue with pattern: $RFC_PATTERN"
+          # Step 2: For each failed run, find associated PR and issue
+          echo "$FAILED_RUNS" | jq -r '.[] | "\(.id) \(.branch)"' | while read -r run_id branch; do
+            if [[ -n "$run_id" && -n "$branch" ]]; then
+              echo "Processing failed run $run_id on branch $branch"
               
-              ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state open --json number,title \
-                --jq ".[] | select(.title | contains(\"$RFC_PATTERN\")) | .number" | head -1)
-            fi
-            
-            # Fallback: check PR body for issue references
-            if [ -z "$ISSUE_NUMBER" ]; then
-              PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json body --jq '.body // empty')
-              ISSUE_NUMBER=$(echo "$PR_BODY" | grep -o '#[0-9]\+' | head -1 | tr -d '#' || true)
-            fi
-            
-            if [ -z "$ISSUE_NUMBER" ]; then
-              echo "[WARN] Could not determine source issue for PR #$PR_NUMBER"
-              continue
-            fi
-            
-            echo "[TARGET] Source issue identified: #$ISSUE_NUMBER"
-            
-            # Step 3: Get issue details
-            ISSUE_DATA=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json title,state,assignees)
-            ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
-            ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
-            
-            echo "[INFO] Issue: #$ISSUE_NUMBER - $ISSUE_TITLE (state: $ISSUE_STATE)"
-            
-            # Step 4: Clean up artifacts
-            echo "[CLEANUP] Cleaning up failed artifacts..."
-            
-            # Close the failed PR
-            if [ "$PR_STATE" = "OPEN" ]; then
-              echo "[ACTION] Closing failed PR #$PR_NUMBER..."
-              gh pr close "$PR_NUMBER" --repo "$REPO" --comment "[AUTO] Closing failed PR due to workflow failure (Run ID: $RUN_ID). Starting fresh implementation."
-            fi
-            
-            # Step 5: Restart the issue
-            if [ "$ISSUE_STATE" = "OPEN" ]; then
-              echo "[RESTART] Restarting issue #$ISSUE_NUMBER..."
+              # Find PR for this branch
+              PR_DATA=$(gh pr list --repo "$REPO" --head "$branch" --state all --json number,title,body,state --limit 1)
+              PR_NUMBER=$(echo "$PR_DATA" | jq -r '.[0].number // empty')
               
-              # Add comprehensive restart comment
-              gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "AUTO-RESTART: Failed Workflow Detection
-
-Failure Detection:
-- Failed Workflow Run: $RUN_ID
-- Failed Branch: $BRANCH
-- Failed PR: #$PR_NUMBER (now closed)
-
-Root Cause Resolution:
-- Firewall configuration updated (api.githubcopilot.com allowed)
-- Network connectivity issues resolved
-- Failed artifacts cleaned up
-
-Fresh Implementation Request:
-This is a clean slate restart. Please re-implement from scratch.
-
-Issue: $ISSUE_TITLE
-
-The system is now properly configured and ready for successful implementation."
-              
-              echo "[SUCCESS] Issue #$ISSUE_NUMBER restarted successfully"
+              if [[ -n "$PR_NUMBER" ]]; then
+                echo "Found PR #$PR_NUMBER for branch $branch"
+                
+                # Extract issue number from PR title or body
+                PR_TITLE=$(echo "$PR_DATA" | jq -r '.[0].title // ""')
+                PR_BODY=$(echo "$PR_DATA" | jq -r '.[0].body // ""')
+                
+                # Look for Game-RFC pattern in title first, then body
+                ISSUE_NUMBER=""
+                if [[ "$PR_TITLE" =~ Game-RFC-[0-9]+-([0-9]+) ]]; then
+                  # Find the actual issue number for this micro-issue
+                  MICRO_PATTERN="Game-RFC-[0-9]+-${BASH_REMATCH[1]}:"
+                  ISSUE_NUMBER=$(gh issue list --repo "$REPO" --state all --json number,title --jq ".[] | select(.title | test(\"$MICRO_PATTERN\")) | .number")
+                elif [[ "$PR_BODY" =~ Fixes[[:space:]]*#([0-9]+) ]]; then
+                  ISSUE_NUMBER="${BASH_REMATCH[1]}"
+                fi
+                
+                if [[ -n "$ISSUE_NUMBER" ]]; then
+                  echo "Found related issue #$ISSUE_NUMBER"
+                  echo "Executing cleanup: Run $run_id -> PR #$PR_NUMBER -> Issue #$ISSUE_NUMBER"
+                  
+                  # Step 1: Close the failed PR
+                  echo "Closing failed PR #$PR_NUMBER..."
+                  gh pr close "$PR_NUMBER" --repo "$REPO" --comment "Closing due to workflow failure. Issue will be recreated automatically."
+                  
+                  # Step 2: Recreate the issue using the existing script
+                  echo "Recreating issue #$ISSUE_NUMBER..."
+                  python3 .github/scripts/recreate_micro_issue.py "$ISSUE_NUMBER" "$REPO"
+                  
+                  echo "Cleanup completed for issue #$ISSUE_NUMBER"
+                else
+                  echo "Could not find related issue for PR #$PR_NUMBER"
+                fi
+              else
+                echo "No PR found for branch $branch"
+              fi
             fi
-            
-            echo "[COMPLETE] Completed cleanup for failed run $RUN_ID"
           done
-          
-          echo ""
-          echo "[FINISH] Failed Copilot run detection and cleanup completed!"
-
-      - name: Summary
-        run: |
-          echo "[INFO] Failed Copilot run detection completed"
-          echo "[TIME] Lookback period: ${{ github.event.inputs.lookback_hours || '2' }} hours"
-          echo "[SCHEDULE] Next scheduled check: 15 minutes"
