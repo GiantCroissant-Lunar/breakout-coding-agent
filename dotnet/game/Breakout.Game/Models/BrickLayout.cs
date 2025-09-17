@@ -123,6 +123,37 @@ public class BrickLayout
     }
     
     /// <summary>
+    /// Generates a brick layout for the specified level
+    /// </summary>
+    /// <param name="level">Level number (1-based)</param>
+    public void GenerateLevelLayout(int level)
+    {
+        switch (level)
+        {
+            case 1:
+                GeneratePatternLayout(LayoutPattern.Standard);
+                break;
+            case 2:
+                GeneratePatternLayout(LayoutPattern.Pyramid);
+                break;
+            case 3:
+                GeneratePatternLayout(LayoutPattern.Checkerboard);
+                break;
+            default:
+                // For levels 4+, use alternating patterns with increased density
+                if (level % 2 == 0)
+                {
+                    GeneratePatternLayout(LayoutPattern.Rainbow);
+                }
+                else
+                {
+                    GeneratePatternLayout(LayoutPattern.Pyramid);
+                }
+                break;
+        }
+    }
+    
+    /// <summary>
     /// Determines the brick type based on the row number
     /// </summary>
     /// <param name="row">Row number (0-based)</param>
