@@ -17,13 +17,17 @@ public static class BallSystem
     {
         if (!ball.IsActive) return;
         
-        // Calculate number of moves based on speed multiplier
-        int movesToMake = (int)Math.Ceiling(ball.SpeedMultiplier);
+        // Add speed multiplier to movement accumulator
+        ball.MovementAccumulator += ball.SpeedMultiplier;
         
-        for (int i = 0; i < movesToMake; i++)
+        // Move ball once if accumulator reaches 1.0 or more
+        if (ball.MovementAccumulator >= 1.0)
         {
             // Move ball
             ball.Move();
+            
+            // Reduce accumulator by 1.0 (but keep fractional part)
+            ball.MovementAccumulator -= 1.0;
             
             // Check wall collisions
             HandleWallCollisions(ball);
@@ -33,9 +37,6 @@ public static class BallSystem
             {
                 HandlePaddleCollision(ball, paddle);
             }
-            
-            // If ball becomes inactive during movement, stop processing
-            if (!ball.IsActive) break;
         }
     }
     
@@ -114,6 +115,7 @@ public static class BallSystem
         ball.Character = BallConstants.DefaultCharacter;
         ball.IsActive = true;
         ball.SpeedMultiplier = 1.0; // Reset to normal speed
+        ball.MovementAccumulator = 0.0; // Reset movement accumulator
     }
     
     /// <summary>
@@ -123,7 +125,8 @@ public static class BallSystem
     /// <param name="level">Current level (1-based)</param>
     public static void SetBallSpeedForLevel(Ball ball, int level)
     {
-        // Increase speed by 0.2 per level, capped at 2.5x for very high levels
-        ball.SpeedMultiplier = Math.Min(1.0 + (level - 1) * 0.2, 2.5);
+        // Increase speed more gradually: level 1 = 1.0x, level 2 = 1.1x, level 3 = 1.2x, etc.
+        // Capped at 1.5x for very high levels to keep game playable
+        ball.SpeedMultiplier = Math.Min(1.0 + (level - 1) * 0.1, 1.5);
     }
 }

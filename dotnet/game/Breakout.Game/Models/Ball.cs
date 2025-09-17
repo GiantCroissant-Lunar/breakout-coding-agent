@@ -41,6 +41,11 @@ public class Ball
     public double SpeedMultiplier { get; set; } = 1.0;
     
     /// <summary>
+    /// Accumulated fractional movement for smooth speed scaling
+    /// </summary>
+    public double MovementAccumulator { get; set; } = 0.0;
+    
+    /// <summary>
     /// Initializes a new ball
     /// </summary>
     public Ball()
