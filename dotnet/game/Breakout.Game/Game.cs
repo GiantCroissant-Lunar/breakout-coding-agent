@@ -80,11 +80,36 @@ public class Game
         // Initialize paddle
         PaddleSystem.InitializePaddle(Paddle);
         
-        // Initialize brick layout
-        BrickLayout.GenerateStandardLayout();
-        
-        // Reset score system
+        // Reset score system when starting from menu (always reset for new game)
         ScoreSystem.Reset();
+        
+        // Initialize brick layout based on current level (which will be 1 after reset)
+        BrickLayout.GenerateLevelLayout(ScoreSystem.CurrentLevel);
+        
+        // Set ball speed based on current level
+        BallSystem.SetBallSpeedForLevel(Ball, ScoreSystem.CurrentLevel);
+    }
+    
+    /// <summary>
+    /// Advances the game to the next level
+    /// </summary>
+    private void AdvanceToNextLevel()
+    {
+        // Advance to next level
+        ScoreSystem.AdvanceLevel();
+        
+        // Generate new brick layout for the level
+        BrickLayout.GenerateLevelLayout(ScoreSystem.CurrentLevel);
+        
+        // Increase ball speed for the new level
+        BallSystem.SetBallSpeedForLevel(Ball, ScoreSystem.CurrentLevel);
+        
+        // Reset ball and paddle positions (but keep lives/score)
+        BallSystem.InitializeBall(Ball);
+        PaddleSystem.InitializePaddle(Paddle);
+        
+        // Brief pause to show level transition (will be more elegant in future RFC)
+        // For now, continue immediately
     }
     
     /// <summary>
@@ -204,7 +229,19 @@ public class Game
                 // Check win condition (all bricks destroyed)
                 if (BrickSystem.CheckWinCondition(BrickLayout))
                 {
-                    State = GameState.GameOver; // Will be changed to Win state in future RFC
+                    // Check if this is the final level (3 levels minimum as per RFC)
+                    const int MaxLevel = 3;
+                    if (ScoreSystem.CurrentLevel >= MaxLevel)
+                    {
+                        // Game completed - show completion message
+                        State = GameState.GameOver; // This will show completion instead of game over
+                        // TODO: In future, add a separate Win state for proper completion message
+                    }
+                    else
+                    {
+                        // Advance to next level
+                        AdvanceToNextLevel();
+                    }
                 }
                 
                 // Check if ball was lost

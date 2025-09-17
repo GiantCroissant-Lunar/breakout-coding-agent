@@ -36,6 +36,16 @@ public class Ball
     public bool IsActive { get; set; }
     
     /// <summary>
+    /// Speed multiplier for level-based difficulty (1.0 = normal speed)
+    /// </summary>
+    public double SpeedMultiplier { get; set; } = 1.0;
+    
+    /// <summary>
+    /// Accumulated fractional movement for smooth speed scaling
+    /// </summary>
+    public double MovementAccumulator { get; set; } = 0.0;
+    
+    /// <summary>
     /// Initializes a new ball
     /// </summary>
     public Ball()

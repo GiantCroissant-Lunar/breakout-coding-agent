@@ -26,6 +26,11 @@ public class ScoreSystem
     public int Lives { get; private set; }
     
     /// <summary>
+    /// Current level (starts at 1)
+    /// </summary>
+    public int CurrentLevel { get; private set; }
+    
+    /// <summary>
     /// Initializes a new score system
     /// </summary>
     public ScoreSystem()
@@ -34,6 +39,7 @@ public class ScoreSystem
         HighScore = 0;
         BricksDestroyed = 0;
         Lives = 3; // Start with 3 lives as specified in RFC
+        CurrentLevel = 1; // Start at level 1
     }
     
     /// <summary>
@@ -59,6 +65,7 @@ public class ScoreSystem
         CurrentScore = 0;
         BricksDestroyed = 0;
         Lives = 3; // Reset lives to 3 when starting new game
+        CurrentLevel = 1; // Reset to level 1 when starting new game
     }
     
     /// <summary>
@@ -109,5 +116,22 @@ public class ScoreSystem
     {
         // Using hearts for visual appeal as suggested in RFC
         return $"Lives: {new string('♥', Lives)}";
+    }
+    
+    /// <summary>
+    /// Advances to the next level
+    /// </summary>
+    public void AdvanceLevel()
+    {
+        CurrentLevel++;
+    }
+    
+    /// <summary>
+    /// Gets a formatted string representation of the current level
+    /// </summary>
+    /// <returns>Formatted level string</returns>
+    public string GetLevelDisplay()
+    {
+        return $"Level: {CurrentLevel}";
     }
 }
